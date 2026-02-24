@@ -177,7 +177,7 @@ function Dashboard() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
         <div className="text-center">
-          <p className="text-xl font-semibold text-indigo-700">Initializing SkillSwap...</p>
+          <p className="text-xl font-semibold text-indigo-700">Initializing Skill...</p>
           <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-indigo-500 mx-auto mt-6"></div>
         </div>
       </div>
@@ -427,7 +427,7 @@ function Dashboard() {
         {/* Navbar */}
         <div className="navbar">
           <div className="brand" onClick={() => navigate("/")}>
-            <Layers size={24} />SkillSwap
+            <Layers size={24} />SkillGrid
           </div>
           <div className="nav-links hidden sm:flex">
             <a href="#" onClick={() => navigate("/browse-skill")}>Browse Skills</a>

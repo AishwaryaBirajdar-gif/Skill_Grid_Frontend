@@ -1,326 +1,264 @@
-import React, { useState, useEffect } from 'react';
-import { User, Mail, MapPin, NotepadText, Save, Loader2, Edit } from 'lucide-react';
-
-// Mock function to simulate API calls and exponential backoff
-const apiCall = async (url, options = {}) => {
-    const maxRetries = 3;
-    let attempt = 0;
-
-    while (attempt < maxRetries) {
-        try {
-            // Replace with your actual backend URL base (e.g., 'http://localhost:8080')
-            const response = await fetch(`http://localhost:8080${url}`, {
-                ...options,
-                headers: {
-                    'Content-Type': 'application/json',
-                    // IMPORTANT: You must include the JWT token here, likely stored in localStorage after login
-                    'Authorization': `Bearer YOUR_JWT_TOKEN_HERE`, 
-                    ...options.headers,
-                }
-            });
-
-            if (!response.ok) {
-                // Handle 400s/500s but don't retry on client errors
-                const errorBody = await response.json().catch(() => ({ message: response.statusText }));
-                throw new Error(`API Error: ${response.status} - ${errorBody.message || 'Unknown error'}`);
-            }
-
-            return response.json();
-        } catch (error) {
-            attempt++;
-            if (attempt >= maxRetries) {
-                console.error(`Failed API call to ${url} after ${maxRetries} attempts.`, error);
-                throw error;
-            }
-            // Exponential backoff delay
-            const delay = Math.pow(2, attempt) * 1000;
-            console.warn(`Retrying API call to ${url} in ${delay / 1000}s... (Attempt ${attempt})`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-        }
-    }
-};
-
-const mockUserProfile = {
-    id: 'user-123',
-    name: 'Alex Johnson',
-    email: 'alex@skillexchange.com',
-    role: 'SKILL_PROVIDER', // Or SKILL_SEEKER
-    bio: 'Experienced React developer looking to exchange tutoring hours for Spanish lessons.',
-    location: 'New York, USA',
-};
-
+import React, { useState } from 'react';
+import { User, Mail, MapPin, Save, Loader2, Edit2, X, Plus, Clock, Sparkles } from 'lucide-react';
 
 const Profile = () => {
-    const [user, setUser] = useState(null);
-    const [formData, setFormData] = useState({});
-    const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
-    const [isEditing, setIsEditing] = useState(false);
-    const [message, setMessage] = useState('');
-    const [error, setError] = useState(null);
+    const [isEditing, setIsEditing] = useState(true); // Started as true so you can type immediately
+    
+    // Main state starts EMPTY so you can type your own data
+    const [formData, setFormData] = useState({
+        name: '',
+        email: '',
+        location: '',
+        availability: 'Evenings',
+        skillsOffered: [],
+        skillsDesired: [],
+        bio: ''
+    });
 
-    // Placeholder for the currently authenticated user's ID.
-    // In a real app, this would come from a global Auth Context after token decoding.
-    const currentUserId = 'user-123'; 
+    const [offeredInput, setOfferedInput] = useState('');
+    const [desiredInput, setDesiredInput] = useState('');
 
-    useEffect(() => {
-        fetchUserProfile();
-    }, []);
+    // This handles typing in Name, Email, Location, and Bio
+    const handleInputChange = (e) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ 
+            ...prev, 
+            [name]: value 
+        }));
+    };
 
-    // Function to fetch the user profile from the backend
-    const fetchUserProfile = async () => {
-        setIsLoading(true);
-        setError(null);
-        try {
-            // Calling the GET /api/user/{id} endpoint
-            // NOTE: Since the real API call would fail without the backend running, we use a mock for structure.
-            // const data = await apiCall(`/api/user/${currentUserId}`);
-            
-            // --- MOCK FETCH SIMULATION ---
-            await new Promise(resolve => setTimeout(resolve, 1500)); 
-            const data = mockUserProfile;
-            // ---------------------------
+    const addSkill = (type) => {
+        const value = type === 'offered' ? offeredInput : desiredInput;
+        const listKey = type === 'offered' ? 'skillsOffered' : 'skillsDesired';
 
-            setUser(data);
-            setFormData(data);
-        } catch (err) {
-            setError('Could not load profile data. Check if the backend is running and user ID is correct.');
-            console.error(err);
-        } finally {
-            setIsLoading(false);
+        if (value.trim() && !formData[listKey].includes(value.trim())) {
+            setFormData(prev => ({
+                ...prev,
+                [listKey]: [...prev[listKey], value.trim()]
+            }));
+            type === 'offered' ? setOfferedInput('') : setDesiredInput('');
         }
     };
 
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+    const removeSkill = (type, skillToRemove) => {
+        const listKey = type === 'offered' ? 'skillsOffered' : 'skillsDesired';
+        setFormData(prev => ({
+            ...prev,
+            [listKey]: prev[listKey].filter(s => s !== skillToRemove)
+        }));
     };
 
-    // Function to update the user profile in the backend
-    const handleSubmit = async (e) => {
+    const handleSave = async (e) => {
         e.preventDefault();
         setIsSaving(true);
-        setMessage('');
-        setError(null);
-
-        // Prepare the data to be sent (ensure the structure matches your Java User model)
-        const dataToSave = {
-            ...formData,
-            // You might strip sensitive or read-only fields here if necessary
-        };
-        
-        try {
-            // Calling the PUT /api/user/{id} endpoint
-            // NOTE: Since the real API call would fail without the backend running, we use a mock for structure.
-            // const updatedData = await apiCall(`/api/user/${currentUserId}`, {
-            //     method: 'PUT',
-            //     body: JSON.stringify(dataToSave)
-            // });
-
-            // --- MOCK UPDATE SIMULATION ---
-            await new Promise(resolve => setTimeout(resolve, 1500)); 
-            const updatedData = dataToSave;
-            // -----------------------------
-
-            setUser(updatedData);
-            setFormData(updatedData);
-            setMessage('Profile updated successfully!');
-            setIsEditing(false); // Close edit mode on success
-
-        } catch (err) {
-            setError('Failed to update profile. Please check the network or server logs.');
-            console.error(err);
-        } finally {
+        // Simulate a save to backend
+        setTimeout(() => {
             setIsSaving(false);
-        }
+            setIsEditing(false);
+            alert("Profile Saved Locally!");
+        }, 1000);
     };
 
-    if (isLoading) {
-        return (
-            <div className="flex items-center justify-center min-h-screen bg-gray-50">
-                <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
-                <p className="ml-3 text-lg font-medium text-gray-700">Loading Profile...</p>
-            </div>
-        );
-    }
-
-    if (error && !user) {
-        return (
-            <div className="flex items-center justify-center min-h-screen bg-gray-50">
-                <div className="p-8 bg-red-100 border-l-4 border-red-500 text-red-700 rounded-lg shadow-md">
-                    <p className="font-bold">Error:</p>
-                    <p>{error}</p>
+    return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-indigo-100 p-6 flex justify-center items-start">
+            <div className="w-full max-w-2xl bg-white/90 backdrop-blur-md shadow-2xl rounded-3xl border border-white p-8">
+                
+                {/* Header Section */}
+                <div className="flex justify-between items-center mb-10">
+                    <div>
+                        <h1 className="text-3xl font-black text-slate-800 flex items-center gap-2">
+                            <Sparkles className="text-yellow-500 w-6 h-6" /> 
+                            Create Profile
+                        </h1>
+                        <p className="text-slate-500 text-sm mt-1">Fill in your details to get started</p>
+                    </div>
                     <button 
-                        onClick={fetchUserProfile}
-                        className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition duration-150"
+                        type="button"
+                        onClick={() => setIsEditing(!isEditing)}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-bold transition-all ${
+                            isEditing 
+                            ? 'bg-rose-50 text-rose-600 hover:bg-rose-100' 
+                            : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                        }`}
                     >
-                        Try Again
+                        {isEditing ? 'View Mode' : 'Edit Profile'} 
+                        <Edit2 className="w-4 h-4" />
                     </button>
                 </div>
-            </div>
-        );
-    }
 
-    return (
-        <div className="min-h-screen bg-gray-50 p-4 sm:p-8 flex justify-center">
-            <div className="w-full max-w-4xl bg-white shadow-xl rounded-xl border border-gray-200">
-                
-                {/* Header */}
-                <div className="p-6 sm:p-8 border-b border-gray-100 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-t-xl">
-                    <h1 className="text-3xl font-extrabold text-gray-900 flex items-center">
-                        <User className="w-8 h-8 text-indigo-600 mr-3" />
-                        My Profile Settings
-                    </h1>
-                    <p className="mt-1 text-gray-500">
-                        Manage your SkillExchange identity, location, and bio.
-                    </p>
-                </div>
-
-                {/* Status Messages */}
-                {message && (
-                    <div className="p-4 mx-6 mt-4 bg-green-100 border-l-4 border-green-500 text-green-700 rounded-lg">
-                        {message}
-                    </div>
-                )}
-                {error && (
-                    <div className="p-4 mx-6 mt-4 bg-red-100 border-l-4 border-red-500 text-red-700 rounded-lg">
-                        {error}
-                    </div>
-                )}
-
-                {/* Profile Form */}
-                <form onSubmit={handleSubmit} className="p-6 sm:p-8">
-                    
-                    {/* Toggle Edit Mode */}
-                    <div className="flex justify-end mb-6">
-                        <button 
-                            type="button"
-                            onClick={() => setIsEditing(!isEditing)}
-                            className={`flex items-center px-4 py-2 text-sm font-medium rounded-full transition duration-150 ${
-                                isEditing 
-                                    ? 'bg-red-100 text-red-600 hover:bg-red-200' 
-                                    : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
-                            }`}
-                        >
-                            {isEditing ? 'Cancel Edit' : 'Edit Profile'}
-                            <Edit className="w-4 h-4 ml-2" />
-                        </button>
-                    </div>
-
-
+                <form onSubmit={handleSave} className="space-y-8">
+                    {/* Basic Info Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        
-                        {/* Name Field (Editable) */}
-                        <InputField 
-                            id="name"
-                            label="Full Name"
-                            icon={User}
-                            value={formData.name || ''}
-                            onChange={handleChange}
-                            readOnly={!isEditing}
-                        />
+                        <div className="space-y-2">
+                            <label className="text-sm font-bold text-slate-700 ml-1">Full Name</label>
+                            <div className="relative">
+                                <User className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
+                                <input 
+                                    name="name"
+                                    placeholder="Enter your name"
+                                    value={formData.name}
+                                    onChange={handleInputChange}
+                                    readOnly={!isEditing}
+                                    className={`w-full pl-11 pr-4 py-3 rounded-2xl border-2 transition-all outline-none ${
+                                        isEditing ? 'border-indigo-100 focus:border-indigo-500 bg-white' : 'border-transparent bg-slate-100'
+                                    }`}
+                                />
+                            </div>
+                        </div>
 
-                        {/* Email Field (Read-Only) */}
-                        <InputField 
-                            id="email"
-                            label="Email Address (Primary)"
-                            icon={Mail}
-                            value={formData.email || ''}
-                            readOnly={true}
-                            type="email"
-                        />
-
-                        {/* Role Field (Read-Only - Derived from BaseUser) */}
-                        <InputField 
-                            id="role"
-                            label="Primary Role"
-                            icon={NotepadText}
-                            value={formData.role ? formData.role.replace('_', ' ') : ''}
-                            readOnly={true}
-                            description="Role is set during signup (Seeker or Provider)."
-                        />
-
-                        {/* Location Field (Editable) */}
-                        <InputField 
-                            id="location"
-                            label="Location / Timezone"
-                            icon={MapPin}
-                            value={formData.location || ''}
-                            onChange={handleChange}
-                            readOnly={!isEditing}
-                        />
+                        <div className="space-y-2">
+                            <label className="text-sm font-bold text-slate-700 ml-1">Email Address</label>
+                            <div className="relative">
+                                <Mail className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
+                                <input 
+                                    name="email"
+                                    placeholder="your@email.com"
+                                    value={formData.email}
+                                    onChange={handleInputChange}
+                                    readOnly={!isEditing}
+                                    className={`w-full pl-11 pr-4 py-3 rounded-2xl border-2 transition-all outline-none ${
+                                        isEditing ? 'border-indigo-100 focus:border-indigo-500 bg-white' : 'border-transparent bg-slate-100'
+                                    }`}
+                                />
+                            </div>
+                        </div>
                     </div>
-                    
-                    {/* Bio Textarea (Editable) */}
-                    <div className="mt-6">
-                        <label htmlFor="bio" className="block text-sm font-medium text-gray-700 mb-1">
-                            Bio / What I Offer/Seek (Max 500 characters)
-                        </label>
-                        <textarea
-                            id="bio"
+
+                    {/* Location & Availability */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                            <label className="text-sm font-bold text-slate-700 ml-1">Location</label>
+                            <div className="relative">
+                                <MapPin className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
+                                <input 
+                                    name="location"
+                                    value={formData.location}
+                                    onChange={handleInputChange}
+                                    readOnly={!isEditing}
+                                    placeholder="City, Country"
+                                    className={`w-full pl-11 pr-4 py-3 rounded-2xl border-2 transition-all outline-none ${
+                                        isEditing ? 'border-indigo-100 focus:border-indigo-500 bg-white' : 'border-transparent bg-slate-100'
+                                    }`}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-sm font-bold text-slate-700 ml-1">Availability</label>
+                            <div className="relative">
+                                <Clock className="absolute left-4 top-3.5 w-4 h-4 text-slate-400" />
+                                <select 
+                                    name="availability"
+                                    value={formData.availability}
+                                    onChange={handleInputChange}
+                                    disabled={!isEditing}
+                                    className={`w-full pl-11 pr-4 py-3 rounded-2xl border-2 transition-all outline-none appearance-none ${
+                                        isEditing ? 'border-indigo-100 focus:border-indigo-500 bg-white' : 'border-transparent bg-slate-100'
+                                    }`}
+                                >
+                                    <option value="Mornings">Mornings</option>
+                                    <option value="Afternoons">Afternoons</option>
+                                    <option value="Evenings">Evenings</option>
+                                    <option value="Weekends">Weekends</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Skills You Can Offer */}
+                    <SkillSection 
+                        title="Skills You Can Offer"
+                        type="offered"
+                        skills={formData.skillsOffered}
+                        inputValue={offeredInput}
+                        setInputValue={setOfferedInput}
+                        onAdd={() => addSkill('offered')}
+                        onRemove={(s) => removeSkill('offered', s)}
+                        isEditing={isEditing}
+                        accentColor="bg-indigo-600"
+                    />
+
+                    {/* Skills You Want to Learn */}
+                    <SkillSection 
+                        title="Skills You Want to Learn"
+                        type="desired"
+                        skills={formData.skillsDesired}
+                        inputValue={desiredInput}
+                        setInputValue={setDesiredInput}
+                        onAdd={() => addSkill('desired')}
+                        onRemove={(s) => removeSkill('desired', s)}
+                        isEditing={isEditing}
+                        accentColor="bg-emerald-500"
+                    />
+
+                    {/* Bio */}
+                    <div className="space-y-2">
+                        <label className="text-sm font-bold text-slate-700 ml-1">Bio</label>
+                        <textarea 
                             name="bio"
-                            rows="4"
-                            maxLength="500"
-                            value={formData.bio || ''}
-                            onChange={handleChange}
+                            value={formData.bio}
+                            onChange={handleInputChange}
                             readOnly={!isEditing}
-                            className={`mt-1 block w-full rounded-lg border p-3 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 ${
-                                !isEditing ? 'bg-gray-50 border-gray-200 text-gray-600' : 'bg-white border-gray-300'
+                            rows="3"
+                            placeholder="Tell the community about yourself..."
+                            className={`w-full p-4 rounded-2xl border-2 transition-all outline-none resize-none ${
+                                isEditing ? 'border-indigo-100 focus:border-indigo-500 bg-white' : 'border-transparent bg-slate-100'
                             }`}
-                            placeholder="Tell others about your skills and what you're looking for in an exchange."
                         />
                     </div>
 
-                    {/* Submit Button */}
-                    <div className="mt-8 pt-6 border-t border-gray-100">
-                        <button
-                            type="submit"
-                            disabled={!isEditing || isSaving}
-                            className={`w-full md:w-auto flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm transition duration-200 ${
-                                !isEditing
-                                    ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                                    : 'bg-indigo-600 text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'
-                            }`}
-                        >
-                            {isSaving ? (
-                                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                            ) : (
-                                <Save className="w-5 h-5 mr-2" />
-                            )}
-                            {isSaving ? 'Saving Changes...' : 'Save Profile Changes'}
-                        </button>
-                    </div>
-
+                    <button
+                        type="submit"
+                        disabled={!isEditing || isSaving}
+                        className={`w-full py-4 rounded-2xl font-black text-lg transition-all duration-300 transform active:scale-95 ${
+                            isEditing 
+                            ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-xl shadow-indigo-200' 
+                            : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                        }`}
+                    >
+                        {isSaving ? <Loader2 className="animate-spin mx-auto" /> : 'Save Profile Changes'}
+                    </button>
                 </form>
-
             </div>
         </div>
     );
 };
 
-// Reusable Input Field Component
-const InputField = ({ id, label, icon: Icon, value, onChange, readOnly, type = 'text', description = '' }) => (
-    <div>
-        <label htmlFor={id} className="block text-sm font-medium text-gray-700 flex items-center">
-            {Icon && <Icon className="w-4 h-4 mr-2 text-indigo-500" />}
-            {label}
-        </label>
-        <input
-            type={type}
-            name={id}
-            id={id}
-            value={value}
-            onChange={onChange}
-            readOnly={readOnly}
-            className={`mt-1 block w-full rounded-lg border p-3 shadow-sm transition duration-150 ${
-                readOnly 
-                    ? 'bg-gray-50 border-gray-200 text-gray-600 cursor-default' 
-                    : 'bg-white border-gray-300 focus:ring-indigo-500 focus:border-indigo-500'
-            }`}
-        />
-        {description && <p className="mt-1 text-xs text-gray-400">{description}</p>}
+const SkillSection = ({ title, skills, inputValue, setInputValue, onAdd, onRemove, isEditing, accentColor }) => (
+    <div className="space-y-3">
+        <label className="text-sm font-bold text-slate-700 ml-1">{title}</label>
+        {isEditing && (
+            <div className="flex gap-2">
+                <input 
+                    className="flex-1 bg-slate-50 border-2 border-slate-100 rounded-2xl px-4 py-3 outline-none focus:border-indigo-300 focus:bg-white transition-all"
+                    placeholder="Add a skill (e.g. Java)"
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyDown={(e) => { if(e.key === 'Enter') { e.preventDefault(); onAdd(); }}}
+                />
+                <button 
+                    type="button"
+                    onClick={onAdd}
+                    className={`${accentColor} text-white p-3 rounded-2xl hover:scale-105 active:scale-90 transition-all shadow-lg`}
+                >
+                    <Plus className="w-6 h-6" />
+                </button>
+            </div>
+        )}
+        <div className="flex flex-wrap gap-2 min-h-[40px]">
+            {skills.map((skill, index) => (
+                <div key={index} className="flex items-center gap-2 bg-white border-2 border-slate-100 px-4 py-1.5 rounded-xl shadow-sm">
+                    <span className="text-sm font-semibold text-slate-700">{skill}</span>
+                    {isEditing && (
+                        <button type="button" onClick={() => onRemove(skill)} className="text-slate-300 hover:text-rose-500">
+                            <X className="w-3.5 h-3.5" />
+                        </button>
+                    )}
+                </div>
+            ))}
+        </div>
     </div>
 );
 
-// Default export is mandatory for a single file React component
 export default Profile;
