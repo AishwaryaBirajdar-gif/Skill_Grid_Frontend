@@ -22,7 +22,6 @@ const Button = ({ children, onClick, variant = 'primary', className = '', type =
     );
 };
 
-
 // --- Component: InputField ---
 const InputField = ({ id, label, type = 'text', icon: Icon, placeholder, value, onChange }) => (
     <div className="mb-6">
@@ -49,7 +48,6 @@ const InputField = ({ id, label, type = 'text', icon: Icon, placeholder, value, 
     </div>
 );
 
-
 // --- Main Login Component ---
 const Login = ({ onLoginSuccess }) => {
     const [email, setEmail] = useState('');
@@ -60,29 +58,47 @@ const Login = ({ onLoginSuccess }) => {
         e.preventDefault();
         
         try {
-            const response = await axios.post("/api/auth/login", {
+            // ✅ Fix 1: Removed "/api" from URL since axiosInstance already has it.
+            // This prevents the 403 error caused by the "api/api/auth/login" mismatch.
+            const response = await axios.post("/auth/login", {
                 email,
                 password,
             });
 
             const data = response.data;
 
-            // ✅ Save token & user details
+            // 🔍 DEBUG: Check console to ensure 'id' is present
+            console.log("Login Success Data:", data);
+
+            // ✅ Fix 2: Map 'id' (backend field) to 'userId' (frontend key)
+            // This ensures the Profile page can find the ID in localStorage.
+            localStorage.setItem("token", data.token); 
+            localStorage.setItem("userId", data.id); 
+            localStorage.setItem("userName", data.name);
+            localStorage.setItem("userRole", data.role);
+
+            // Keeping skillgrid prefixes for your specific components
             localStorage.setItem("skillgrid_token", data.token);
-            localStorage.setItem("skillgrid_userId", data.userId);
+            localStorage.setItem("skillgrid_userId", data.id);
             localStorage.setItem("skillgrid_email", data.email);
-            localStorage.setItem("skillgrid_name", data.fullname);
+            localStorage.setItem("skillgrid_name", data.name);
             localStorage.setItem("skillgrid_role", data.role);
 
             if (onLoginSuccess) {
                 onLoginSuccess(data);
             }
 
+            // Move to dashboard
             navigate("/dashboard");
 
         } catch (error) {
-            alert("Invalid email or password");
-            console.error(error);
+            console.error("Login Error Details:", error);
+            if (error.response) {
+                // Handle specific 403 or 401 errors from backend
+                alert(error.response.data || "Login failed: Invalid credentials");
+            } else {
+                alert("Connection failed. Please ensure the backend server is running.");
+            }
         }
     };
     
@@ -96,9 +112,7 @@ const Login = ({ onLoginSuccess }) => {
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-900 overflow-hidden relative">
-            
             <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')] z-0"></div>
-
             <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/40 to-black/40 z-0"></div>
 
             <button 
@@ -108,10 +122,8 @@ const Login = ({ onLoginSuccess }) => {
                 <ArrowLeft className="w-5 h-5" />
                 <span>Back to Home</span>
             </button>
-            
 
             <div className="w-full max-w-lg p-8 md:p-12 bg-gray-800/95 backdrop-blur-sm rounded-2xl shadow-3xl z-10 border border-gray-700">
-                
                 <div className="text-center mb-10">
                     <Grid className="w-10 h-10 text-teal-400 mx-auto mb-3" />
                     <h2 className="text-4xl font-extrabold text-white mb-2">
@@ -123,7 +135,6 @@ const Login = ({ onLoginSuccess }) => {
                 </div>
 
                 <form onSubmit={handleSubmit}>
-                    
                     <InputField
                         id="email"
                         label="Email Address"

@@ -8,4 +8,14 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  server: {
+    // This fixes the WebSocket / HMR connection errors
+    hmr: {
+      protocol: 'ws',
+      host: 'localhost',
+    },
+    // Optional: ensures the port stays consistent
+    port: 5173,
+    strictPort: true,
+  }
 })
