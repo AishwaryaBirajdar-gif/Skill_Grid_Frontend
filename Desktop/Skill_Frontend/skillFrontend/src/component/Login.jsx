@@ -3,7 +3,7 @@ import { Mail, Lock, ArrowLeft, Grid } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from "../api/axiosInstance";
 
-// Reusing the Button component logic from HomePage.jsx for consistent styling
+// Reusing the Button component logic for consistent styling
 const Button = ({ children, onClick, variant = 'primary', className = '', type = 'button' }) => {
     let baseStyles = 'px-7 py-3 font-semibold rounded-full transition duration-300 shadow-xl flex items-center justify-center whitespace-nowrap text-lg';
     
@@ -22,7 +22,6 @@ const Button = ({ children, onClick, variant = 'primary', className = '', type =
     );
 };
 
-// --- Component: InputField ---
 const InputField = ({ id, label, type = 'text', icon: Icon, placeholder, value, onChange }) => (
     <div className="mb-6">
         <label htmlFor={id} className="block text-sm font-medium text-gray-300 mb-2">
@@ -48,7 +47,6 @@ const InputField = ({ id, label, type = 'text', icon: Icon, placeholder, value, 
     </div>
 );
 
-// --- Main Login Component ---
 const Login = ({ onLoginSuccess }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -58,57 +56,59 @@ const Login = ({ onLoginSuccess }) => {
         e.preventDefault();
         
         try {
-            // ✅ Fix 1: Removed "/api" from URL since axiosInstance already has it.
-            // This prevents the 403 error caused by the "api/api/auth/login" mismatch.
             const response = await axios.post("/auth/login", {
                 email,
                 password,
             });
 
             const data = response.data;
+            
+            // 🔍 DEBUG: This helps you see exactly what the server sent
+            console.log("--- LOGIN DEBUG START ---");
+            console.log("Payload from Server:", data);
 
-            // 🔍 DEBUG: Check console to ensure 'id' is present
-            console.log("Login Success Data:", data);
+            // ✅ DEFENSIVE ID DETECTION:
+            // Since MongoDB often uses _id and Spring uses id, we check both.
+            const userId = data.id || data._id || data.userId;
 
-            // ✅ Fix 2: Map 'id' (backend field) to 'userId' (frontend key)
-            // This ensures the Profile page can find the ID in localStorage.
+            if (!userId) {
+                console.error("ID Mismatch Error: Server response keys:", Object.keys(data));
+                alert("Login Error: User ID not found in server response. Check Console.");
+                return;
+            }
+
+            // ✅ SESSION CLEANUP: 
+            // Wipe everything to prevent "undefined" or "null" strings from previous attempts
+            localStorage.clear();
+
+            // ✅ STORAGE: 
+            // We set 'userId' (lowercase 'i') because your Profile.jsx looks for that key.
             localStorage.setItem("token", data.token); 
-            localStorage.setItem("userId", data.id); 
-            localStorage.setItem("userName", data.name);
+            localStorage.setItem("userId", userId); 
+            localStorage.setItem("skillgrid_userId", userId); 
+            localStorage.setItem("userName", data.name || "User");
             localStorage.setItem("userRole", data.role);
-
-            // Keeping skillgrid prefixes for your specific components
             localStorage.setItem("skillgrid_token", data.token);
-            localStorage.setItem("skillgrid_userId", data.id);
-            localStorage.setItem("skillgrid_email", data.email);
-            localStorage.setItem("skillgrid_name", data.name);
-            localStorage.setItem("skillgrid_role", data.role);
+            localStorage.setItem("skillgrid_email", data.email || email);
+
+            console.log("Success! Saved ID to storage:", userId);
+            console.log("--- LOGIN DEBUG END ---");
 
             if (onLoginSuccess) {
                 onLoginSuccess(data);
             }
 
-            // Move to dashboard
             navigate("/dashboard");
 
         } catch (error) {
             console.error("Login Error Details:", error);
-            if (error.response) {
-                // Handle specific 403 or 401 errors from backend
-                alert(error.response.data || "Login failed: Invalid credentials");
-            } else {
-                alert("Connection failed. Please ensure the backend server is running.");
-            }
+            const errorMsg = error.response?.data?.message || error.response?.data || "Login failed: Invalid credentials";
+            alert(errorMsg);
         }
     };
     
-    const handleBackClick = () => {
-        navigate('/');
-    };
-    
-    const handleSignupClick = () => {
-        navigate('/signup');
-    };
+    const handleBackClick = () => navigate('/');
+    const handleSignupClick = () => navigate('/signup');
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-900 overflow-hidden relative">
@@ -126,12 +126,8 @@ const Login = ({ onLoginSuccess }) => {
             <div className="w-full max-w-lg p-8 md:p-12 bg-gray-800/95 backdrop-blur-sm rounded-2xl shadow-3xl z-10 border border-gray-700">
                 <div className="text-center mb-10">
                     <Grid className="w-10 h-10 text-teal-400 mx-auto mb-3" />
-                    <h2 className="text-4xl font-extrabold text-white mb-2">
-                        Welcome Back
-                    </h2>
-                    <p className="text-gray-400 text-lg">
-                        Log in to your SkillGrid account
-                    </p>
+                    <h2 className="text-4xl font-extrabold text-white mb-2">Welcome Back</h2>
+                    <p className="text-gray-400 text-lg">Log in to your SkillGrid account</p>
                 </div>
 
                 <form onSubmit={handleSubmit}>
@@ -159,17 +155,12 @@ const Login = ({ onLoginSuccess }) => {
                         <div className="flex items-center">
                             <input 
                                 id="remember-me" 
-                                name="remember-me" 
                                 type="checkbox" 
                                 className="h-4 w-4 text-teal-500 border-gray-600 rounded focus:ring-teal-500 bg-gray-700"
                             />
-                            <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-400">
-                                Remember me
-                            </label>
+                            <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-400">Remember me</label>
                         </div>
-                        <a href="#" className="text-sm font-medium text-indigo-400 hover:text-teal-400 transition">
-                            Forgot Password?
-                        </a>
+                        <a href="#" className="text-sm font-medium text-indigo-400 hover:text-teal-400 transition">Forgot Password?</a>
                     </div>
 
                     <Button 
@@ -183,10 +174,7 @@ const Login = ({ onLoginSuccess }) => {
 
                 <p className="mt-8 text-center text-gray-400">
                     Don't have an account yet?{' '}
-                    <button 
-                        onClick={handleSignupClick}
-                        className="font-semibold text-teal-400 hover:text-indigo-400 transition duration-150 focus:outline-none"
-                    >
+                    <button onClick={handleSignupClick} className="font-semibold text-teal-400 hover:text-indigo-400 transition duration-150">
                         Join SkillGrid
                     </button>
                 </p>

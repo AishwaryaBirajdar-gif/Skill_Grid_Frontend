@@ -1,326 +1,207 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Search, MapPin, Tag, BookOpen, Clock, Loader2, Zap } from 'lucide-react';
-
-// --- Re-using the Mock API Call function with Exponential Backoff ---
-const apiCall = async (url, options = {}) => {
-    // NOTE: This is a placeholder function. In a real application, 
-    // you must handle JWT token inclusion in the Authorization header.
-    return new Promise((resolve, reject) => {
-        // Simulate network delay
-        setTimeout(() => {
-            if (url.includes('/api/skills')) {
-                // Return mock data for GET /api/skills
-                resolve(mockSkillsData);
-            } else {
-                reject(new Error('Mock endpoint not found.'));
-            }
-        }, 1500);
-    });
-};
-
-// Mock data structure based on what your SkillController might return
-const mockSkillsData = [
-    {
-        id: 's-101',
-        name: 'Conversational Spanish (Intermediate)',
-        description: 'Practice speaking with a native speaker focusing on travel vocabulary and real-world scenarios.',
-        category: 'Languages',
-        listingType: 'OFFERING', // I can teach
-        exchangePreferences: 'Seeking equivalent skill exchange in photography or a flat hourly rate.',
-        postedBy: { name: 'Maria L.', location: 'Virtual / GMT-5' },
-        createdAt: new Date(Date.now() - 86400000).toISOString(),
-    },
-    {
-        id: 's-102',
-        name: 'Introduction to React Hooks',
-        description: 'Learn useState, useEffect, and custom hooks to build scalable components.',
-        category: 'Technology & IT',
-        listingType: 'OFFERING', // I can teach
-        exchangePreferences: 'Flexible payment or looking for tutoring in advanced Excel.',
-        postedBy: { name: 'Alex J.', location: 'New York, USA' },
-        createdAt: new Date(Date.now() - 3600000 * 5).toISOString(),
-    },
-    {
-        id: 's-103',
-        name: 'Seeking Piano Lessons (Beginner)',
-        description: 'Looking for a teacher who can meet twice a week for basic instruction in classical piano.',
-        category: 'Arts & Music',
-        listingType: 'SEEKING', // I want to learn
-        exchangePreferences: 'Offering graphic design services in return, or a fixed monthly fee.',
-        postedBy: { name: 'Chloe T.', location: 'Los Angeles, USA' },
-        createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
-    },
-    {
-        id: 's-104',
-        name: 'Financial Modeling in Python (Pandas)',
-        description: 'Advanced one-on-one sessions covering data cleaning and financial forecasting models.',
-        category: 'Finance & Business',
-        listingType: 'OFFERING',
-        exchangePreferences: 'High hourly rate required.',
-        postedBy: { name: 'David W.', location: 'London, UK' },
-        createdAt: new Date(Date.now() - 3600000 * 10).toISOString(),
-    },
-];
-
-const SKILL_CATEGORIES = [
-    'All Categories',
-    'Technology & IT',
-    'Languages',
-    'Arts & Music',
-    'Health & Fitness',
-    'Academics & Tutoring',
-    'Finance & Business',
-    'Handicrafts & DIY',
-    'Other'
-];
+import React, { useState, useEffect } from 'react';
+import axiosInstance from '../api/axiosInstance';
+import { Search, User, ArrowRightLeft, Send, CheckCircle, X } from 'lucide-react';
 
 const BrowseSkills = () => {
-    const [skills, setSkills] = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectedCategory, setSelectedCategory] = useState('All Categories');
-    const [filterType, setFilterType] = useState('ALL'); // ALL, OFFERING, SEEKING
-    const [error, setError] = useState(null);
+    const [users, setUsers] = useState([]);
+    const [myProfile, setMyProfile] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [requestStatus, setRequestStatus] = useState({});
+    
+    // Modal State
+    const [showModal, setShowModal] = useState(false);
+    const [selectedUser, setSelectedUser] = useState(null);
+    const [offeredSkill, setOfferedSkill] = useState('');
+
+    const currentUserId = localStorage.getItem('userId');
 
     useEffect(() => {
-        fetchSkills();
-    }, []);
+        const fetchMyProfile = async () => {
+            try {
+                const res = await axiosInstance.get(`/user/${currentUserId}`);
+                setMyProfile(res.data);
+                if (res.data.skillsOffered?.length > 0) {
+                    setOfferedSkill(res.data.skillsOffered[0]);
+                }
+            } catch (err) {
+                console.error("Error fetching your profile", err);
+            }
+        };
+        fetchMyProfile();
+    }, [currentUserId]);
 
-    const fetchSkills = async () => {
-        setIsLoading(true);
-        setError(null);
+    const handleSearch = async (e) => {
+        e.preventDefault();
+        setLoading(true);
         try {
-            // Calling the GET /api/skills endpoint
-            // const data = await apiCall('/api/skills');
-            
-            // --- MOCK FETCH SIMULATION ---
-            const data = await apiCall('/api/skills');
-            // ---------------------------
-
-            setSkills(data);
+            const res = await axiosInstance.get(`/user/browse?skill=${searchTerm}`);
+            setUsers(res.data.filter(u => u.id !== currentUserId));
         } catch (err) {
-            setError('Could not load skill listings. Check the network and backend server status.');
-            console.error(err);
+            console.error("Search failed", err);
         } finally {
-            setIsLoading(false);
+            setLoading(false);
         }
     };
 
-    // Use useMemo to filter skills only when dependencies change
-    const filteredSkills = useMemo(() => {
-        let filtered = skills;
+    const openRequestModal = (user) => {
+        setSelectedUser(user);
+        // Auto-select a matching skill if available
+        const match = myProfile?.skillsOffered.find(s => user.skillsWanted.includes(s));
+        setOfferedSkill(match || myProfile?.skillsOffered[0] || "");
+        setShowModal(true);
+    };
 
-        // 1. Filter by Listing Type (OFFERING/SEEKING)
-        if (filterType !== 'ALL') {
-            filtered = filtered.filter(skill => skill.listingType === filterType);
+    const confirmAndSendRequest = async () => {
+        const payload = {
+            senderId: currentUserId,
+            receiverId: selectedUser.id,
+            skillRequested: searchTerm,
+            skillOffered: offeredSkill,
+            status: "PENDING"
+        };
+
+        try {
+            await axiosInstance.post('/requests/send', payload);
+            setRequestStatus(prev => ({ ...prev, [selectedUser.id]: 'SENT' }));
+            setShowModal(false);
+            alert(`Request sent to ${selectedUser.name}!`);
+        } catch (err) {
+            alert("Failed to send request.");
         }
-
-        // 2. Filter by Category
-        if (selectedCategory !== 'All Categories') {
-            filtered = filtered.filter(skill => skill.category === selectedCategory);
-        }
-
-        // 3. Filter by Search Term (Name or Description)
-        if (searchTerm) {
-            const lowerSearchTerm = searchTerm.toLowerCase();
-            filtered = filtered.filter(skill =>
-                skill.name.toLowerCase().includes(lowerSearchTerm) ||
-                skill.description.toLowerCase().includes(lowerSearchTerm)
-            );
-        }
-
-        return filtered;
-    }, [skills, searchTerm, selectedCategory, filterType]);
-
-    const handleExchangeRequest = (skillId) => {
-        // In a real app, this would navigate the user to the ExchangeForm page
-        // which calls POST /api/exchanges (ExchangeController.java)
-        alert(`Initiating exchange request for skill ID: ${skillId}. (Not yet implemented)`);
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 p-4 sm:p-8">
-            <div className="max-w-7xl mx-auto">
-                
-                {/* Header and Search */}
-                <header className="mb-8 bg-white p-6 rounded-xl shadow-lg border-b-4 border-indigo-500">
-                    <h1 className="text-3xl font-bold text-gray-900 flex items-center mb-2">
-                        <BookOpen className="w-7 h-7 mr-3 text-indigo-600" />
-                        Browse the Skill Exchange
-                    </h1>
-                    <p className="text-gray-600 mb-6">Find skills to learn or opportunities to offer your expertise.</p>
+        <div className="min-h-screen bg-slate-50 p-8">
+            <div className="max-w-6xl mx-auto">
+                <h1 className="text-4xl font-black text-slate-800 mb-8">Browse Skills</h1>
 
-                    {/* Search and Filter Bar */}
-                    <div className="flex flex-col md:flex-row gap-4">
-                        <div className="relative flex-grow">
-                            <Search className="absolute left-3 top-3.5 w-5 h-5 text-gray-400" />
-                            <input
-                                type="text"
-                                placeholder="Search by skill name or description..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 transition duration-150"
-                            />
-                        </div>
+                {/* Search Bar */}
+                <form onSubmit={handleSearch} className="relative mb-12">
+                    <input 
+                        type="text"
+                        placeholder="What do you want to learn? (e.g. Java, Design)"
+                        className="w-full p-6 pl-16 rounded-3xl shadow-xl border-none focus:ring-4 focus:ring-indigo-300 text-lg"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                    <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400" size={28} />
+                    <button type="submit" className="absolute right-4 top-1/2 -translate-y-1/2 bg-indigo-600 text-white px-8 py-3 rounded-2xl font-bold hover:bg-indigo-700 transition-all">
+                        Search
+                    </button>
+                </form>
+
+                {/* Results Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {users.map(user => {
+                        const isMatch = user.skillsWanted.some(skill => myProfile?.skillsOffered.includes(skill));
+
+                        return (
+                            <div key={user.id} className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 hover:shadow-xl transition-all flex flex-col justify-between">
+                                <div>
+                                    <div className="flex items-center gap-4 mb-6">
+                                        <div className="bg-indigo-100 p-4 rounded-2xl text-indigo-600">
+                                            <User size={32} />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-xl font-bold text-slate-800">{user.name}</h3>
+                                            <p className="text-slate-500 text-sm">{user.location}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-4 mb-8">
+                                        <div>
+                                            <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Offers</p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {user.skillsOffered.map(s => <span key={s} className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold">{s}</span>)}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Wants</p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {user.skillsWanted.map(s => <span key={s} className="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold">{s}</span>)}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {isMatch && (
+                                        <div className="bg-amber-50 text-amber-700 p-3 rounded-xl flex items-center gap-2 mb-6 text-sm font-bold">
+                                            <ArrowRightLeft size={16} /> Direct Barter Match!
+                                        </div>
+                                    )}
+                                </div>
+
+                                <button 
+                                    onClick={() => openRequestModal(user)}
+                                    disabled={requestStatus[user.id] === 'SENT'}
+                                    className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
+                                        requestStatus[user.id] === 'SENT' 
+                                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                        : 'bg-slate-900 text-white hover:bg-indigo-600 shadow-lg'
+                                    }`}
+                                >
+                                    {requestStatus[user.id] === 'SENT' ? (
+                                        <><CheckCircle size={20}/> Request Sent</>
+                                    ) : (
+                                        <><Send size={20}/> Send Barter Request</>
+                                    )}
+                                </button>
+                            </div>
+                        );
+                    })}
+                </div>
+                
+                {users.length === 0 && !loading && (
+                    <div className="text-center py-20">
+                        <p className="text-slate-400 text-lg font-medium">Search for a skill to find barter partners!</p>
+                    </div>
+                )}
+            </div>
+
+            {/* --- BARTER REQUEST MODAL --- */}
+            {showModal && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-[2rem] w-full max-w-md p-8 shadow-2xl relative animate-in fade-in zoom-in duration-200">
+                        <button onClick={() => setShowModal(false)} className="absolute right-6 top-6 text-slate-400 hover:text-slate-600">
+                            <X size={24} />
+                        </button>
                         
-                        {/* Category Dropdown */}
-                        <select
-                            value={selectedCategory}
-                            onChange={(e) => setSelectedCategory(e.target.value)}
-                            className="py-3 px-4 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 bg-white"
-                        >
-                            {SKILL_CATEGORIES.map(cat => (
-                                <option key={cat} value={cat}>{cat}</option>
-                            ))}
-                        </select>
+                        <h2 className="text-2xl font-black text-slate-800 mb-2">New Barter Request</h2>
+                        <p className="text-slate-500 mb-8 text-sm">Propose a skill exchange with <span className="font-bold text-indigo-600">{selectedUser?.name}</span></p>
 
-                        {/* Type Filter Buttons (Mobile/Desktop friendly) */}
-                        <div className="flex space-x-2 md:space-x-3">
-                            <FilterButton 
-                                label="All" 
-                                typeValue="ALL" 
-                                currentType={filterType} 
-                                setFilterType={setFilterType} 
-                            />
-                            <FilterButton 
-                                label="Offering" 
-                                typeValue="OFFERING" 
-                                currentType={filterType} 
-                                setFilterType={setFilterType} 
-                                color="green"
-                            />
-                            <FilterButton 
-                                label="Seeking" 
-                                typeValue="SEEKING" 
-                                currentType={filterType} 
-                                setFilterType={setFilterType} 
-                                color="purple"
-                            />
+                        <div className="space-y-6">
+                            <div>
+                                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">You Want to Learn</label>
+                                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold text-slate-700 capitalize">
+                                    {searchTerm}
+                                </div>
+                            </div>
+
+                            <ArrowRightLeft className="mx-auto text-indigo-400" size={32} />
+
+                            <div>
+                                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">You Offer in Exchange</label>
+                                <select 
+                                    className="w-full p-4 bg-white rounded-2xl border-2 border-slate-100 focus:border-indigo-500 outline-none font-bold text-slate-700"
+                                    value={offeredSkill}
+                                    onChange={(e) => setOfferedSkill(e.target.value)}
+                                >
+                                    {myProfile?.skillsOffered.map(skill => (
+                                        <option key={skill} value={skill}>{skill}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <button 
+                                onClick={confirmAndSendRequest}
+                                className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-indigo-700 shadow-xl shadow-indigo-200 transition-all mt-4"
+                            >
+                                Confirm & Send Request
+                            </button>
                         </div>
-
                     </div>
-                </header>
-                
-                {/* Content Area */}
-                {error && (
-                    <div className="p-4 bg-red-100 border-l-4 border-red-500 text-red-700 rounded-lg mb-6">{error}</div>
-                )}
-
-                {isLoading ? (
-                    <div className="flex justify-center items-center h-48">
-                        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
-                        <p className="ml-3 text-lg font-medium text-gray-700">Fetching skills...</p>
-                    </div>
-                ) : filteredSkills.length === 0 ? (
-                    <div className="text-center p-10 bg-white rounded-xl shadow-md">
-                        <Zap className="w-10 h-10 mx-auto text-yellow-500" />
-                        <h2 className="mt-2 text-xl font-semibold text-gray-900">No Skills Found</h2>
-                        <p className="mt-1 text-gray-500">Try adjusting your filters or search terms.</p>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {filteredSkills.map(skill => (
-                            <SkillCard 
-                                key={skill.id} 
-                                skill={skill} 
-                                onExchangeRequest={handleExchangeRequest} 
-                            />
-                        ))}
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-};
-
-// Reusable Filter Button Component
-const FilterButton = ({ label, typeValue, currentType, setFilterType, color = 'indigo' }) => {
-    const isActive = currentType === typeValue;
-    const baseClasses = "px-4 py-2 text-sm font-medium rounded-lg transition duration-200 border";
-    
-    let activeClasses = '';
-    let inactiveClasses = '';
-
-    if (color === 'green') {
-        activeClasses = 'bg-green-600 text-white border-green-700 shadow-md';
-        inactiveClasses = 'bg-white text-green-700 border-green-300 hover:bg-green-50';
-    } else if (color === 'purple') {
-        activeClasses = 'bg-purple-600 text-white border-purple-700 shadow-md';
-        inactiveClasses = 'bg-white text-purple-700 border-purple-300 hover:bg-purple-50';
-    } else {
-        activeClasses = 'bg-indigo-600 text-white border-indigo-700 shadow-md';
-        inactiveClasses = 'bg-white text-indigo-700 border-indigo-300 hover:bg-indigo-50';
-    }
-
-    return (
-        <button
-            type="button"
-            onClick={() => setFilterType(typeValue)}
-            className={`${baseClasses} ${isActive ? activeClasses : inactiveClasses} flex-1`}
-        >
-            {label}
-        </button>
-    );
-};
-
-
-// Skill Card Component
-const SkillCard = ({ skill, onExchangeRequest }) => {
-    const isOffering = skill.listingType === 'OFFERING';
-    const typeColor = isOffering ? 'bg-green-100 text-green-800 border-green-300' : 'bg-purple-100 text-purple-800 border-purple-300';
-    const buttonColor = isOffering ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-purple-600 hover:bg-purple-700';
-
-    const timeSincePost = (dateString) => {
-        const seconds = Math.floor((new Date() - new Date(dateString)) / 1000);
-        let interval = Math.floor(seconds / 31536000);
-        if (interval > 1) return interval + " years";
-        interval = Math.floor(seconds / 2592000);
-        if (interval > 1) return interval + " months";
-        interval = Math.floor(seconds / 86400);
-        if (interval > 1) return interval + " days";
-        interval = Math.floor(seconds / 3600);
-        if (interval > 1) return interval + " hours";
-        interval = Math.floor(seconds / 60);
-        if (interval > 1) return interval + " minutes";
-        return Math.floor(seconds) + " seconds";
-    };
-
-    return (
-        <div className="bg-white p-6 rounded-xl shadow-lg hover:shadow-xl transition duration-300 flex flex-col border border-gray-200">
-            <div className="flex justify-between items-start mb-4">
-                <h3 className="text-xl font-bold text-gray-900 pr-4">{skill.name}</h3>
-                <span className={`px-3 py-1 text-xs font-semibold rounded-full border ${typeColor} whitespace-nowrap`}>
-                    {isOffering ? 'Skill Offered' : 'Skill Wanted'}
-                </span>
-            </div>
-            
-            <p className="text-sm text-gray-600 mb-4 flex-grow">{skill.description}</p>
-            
-            <div className="space-y-2 text-sm text-gray-700 mb-6">
-                <p className="flex items-center">
-                    <Tag className="w-4 h-4 mr-2 text-indigo-500" />
-                    <span className="font-medium">Category:</span> {skill.category}
-                </p>
-                <p className="flex items-center">
-                    <MapPin className="w-4 h-4 mr-2 text-indigo-500" />
-                    <span className="font-medium">Location:</span> {skill.postedBy.location}
-                </p>
-                <p className="flex items-center">
-                    <Clock className="w-4 h-4 mr-2 text-indigo-500" />
-                    <span className="font-medium">Posted:</span> {timeSincePost(skill.createdAt)} ago
-                </p>
-                <p className="flex items-center">
-                    <Zap className="w-4 h-4 mr-2 text-indigo-500" />
-                    <span className="font-medium">Exchange:</span> {skill.exchangePreferences}
-                </p>
-            </div>
-
-            <button
-                onClick={() => onExchangeRequest(skill.id)}
-                className={`mt-auto w-full py-2.5 rounded-lg text-white font-semibold transition duration-200 shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${buttonColor}`}
-            >
-                {isOffering ? 'Request This Skill' : 'Offer to Teach'}
-            </button>
+                </div>
+            )}
         </div>
     );
 };

@@ -1,19 +1,20 @@
 import React, { useState } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 
-// ✅ FIXED IMPORTS: These files are in your 'component' folder according to your image
+// Components
 import HomePage from "./component/HomePage.jsx";
-import Login from "./component/Login.jsx";
+import Login from "./component/login.jsx";
 import Signup from "./component/Signup.jsx";
 import Dashboard from "./component/Dashboard.jsx";
-import Browse from "./component/Browse.jsx"; // Moved from ./pages/ to ./component/
+import Browse from "./component/Browse.jsx";
 
-// Pages (Assuming these are actually in your 'pages' folder)
+// Pages 
 import Profile from "./pages/Profile.jsx";
 import BrowseSkill from "./pages/BrowseSkill.jsx";
 import ExchangeForm from "./pages/ExchangeForm.jsx";
 import SkillForm from "./pages/SkillForm.jsx";
 import Requests from './pages/Requests';
+import MyRequests from './pages/MyRequests';
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -28,18 +29,32 @@ function App() {
   return (
     <Router>
       <Routes>
+        {/* Core Auth & Main Routes */}
         <Route path="/" element={<HomePage isLoggedIn={isLoggedIn} />} />
         <Route path="/login" element={<Login onLoginSuccess={handleLoginSuccess} />} />
         <Route path="/signup" element={<Signup onSignupSuccess={handleLoginSuccess} />} />
         <Route path="/dashboard" element={<Dashboard user={currentUser} />} />
+        
+        {/* Profile & Skills */}
         <Route path="/profile" element={<Profile user={currentUser} />} />
         <Route path="/browse" element={<Browse />} />
-
-        {/* New pages */}
         <Route path="/browse-skill" element={<BrowseSkill user={currentUser} />} />
-        <Route path="/exchange-form" element={<ExchangeForm user={currentUser} />} />
         <Route path="/skill-form" element={<SkillForm user={currentUser} />} />
+        
+        {/* Barter & Requests */}
+        <Route path="/exchange-form" element={<ExchangeForm user={currentUser} />} />
         <Route path="/requests" element={<Requests />} />
+        <Route path="/my-requests" element={<MyRequests />} />
+
+        {/* ✅ SAFETY CATCH-ALL: If you visit a broken link, this shows on screen */}
+        <Route 
+          path="*" 
+          element={
+            <div className="flex items-center justify-center h-screen font-bold text-red-500">
+              Router Error: The path "{window.location.pathname}" is not defined in App.jsx
+            </div>
+          } 
+        />
       </Routes>
     </Router>
   );

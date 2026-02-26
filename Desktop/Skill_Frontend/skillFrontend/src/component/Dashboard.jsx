@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import axios from "axios";
+import axiosInstance from "../api/axiosInstance"; 
 import { 
   Gift, BookOpen, Clock, Users, Zap, Layers, 
   Home, Search, MessageSquare, LayoutDashboard, Send, Award, TrendingUp, Sparkles, Bell
@@ -10,41 +10,48 @@ import {
 function Dashboard() {
   const navigate = useNavigate();
 
-  // --- STATE ---
-  // Using a mock userId for now - ensure this matches the one in Profile.jsx
-  const userId = "user123"; 
-  const [userName, setUserName] = useState("User");
+  const userId = localStorage.getItem('userId'); 
+  const [userName, setUserName] = useState(localStorage.getItem('userName') || "User");
   const [isLoading, setIsLoading] = useState(true);
 
-  // Stats from Backend
   const [stats, setStats] = useState({
     offered: 0,
     wanted: 0
   });
 
-  // Other UI States
   const [pendingRequests, setPendingRequests] = useState([]);
-  const [activeConnections, setActiveConnections] = useState(1);
+  const [activeConnections, setActiveConnections] = useState(0);
 
-  // --- FETCH DATA FROM SPRING BOOT ---
   useEffect(() => {
     const fetchDashboardData = async () => {
+      if (!userId || userId === "undefined") {
+        setIsLoading(false);
+        return;
+      }
+
       setIsLoading(true);
       try {
-        // 1. Fetch Skill Counts from your new Java Endpoint
-        const statsRes = await axios.get(`http://localhost:8080/api/skills/counts/${userId}`);
+        const userRes = await axiosInstance.get(`/user/${userId}`);
+        const user = userRes.data;
+
+        const requestRes = await axiosInstance.get(`/requests/my-requests/${userId}`);
+        const allRequests = requestRes.data;
+        
+        const pending = allRequests.filter(req => req.status === "PENDING");
+        const accepted = allRequests.filter(req => req.status === "ACCEPTED");
+
         setStats({
-          offered: statsRes.data.offered || 0,
-          wanted: statsRes.data.wanted || 0
+          offered: user.skillsOffered?.length || 0,
+          wanted: user.skillsWanted?.length || 0
         });
-
-        // 2. Fetch Pending Requests (If you have this endpoint, otherwise empty)
-        // const requestsRes = await axios.get(`http://localhost:8080/api/exchanges/pending/${userId}`);
-        // setPendingRequests(requestsRes.data);
-
-        setIsLoading(false);
+        
+        setPendingRequests(pending);
+        setActiveConnections(accepted.length);
+        setUserName(user.name || "User");
+        
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
+      } finally {
         setIsLoading(false);
       }
     };
@@ -66,7 +73,6 @@ function Dashboard() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-20 font-sans">
       
-      {/* 1. CENTERED NAVIGATION */}
       <nav className="bg-white border-b border-slate-200 px-8 py-4 sticky top-0 z-50 shadow-sm">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2 text-2xl font-black text-indigo-600 cursor-pointer w-1/4" onClick={() => navigate("/")}>
@@ -80,7 +86,7 @@ function Dashboard() {
             <button onClick={() => navigate("/browse-skill")} className="flex items-center gap-2 hover:text-indigo-600 transition-colors">
               <Search size={18}/> Browse Skills
             </button>
-            <button onClick={() => navigate("/exchange-form")} className="flex items-center gap-2 hover:text-indigo-600 transition-colors">
+            <button onClick={() => navigate("/my-requests")} className="flex items-center gap-2 hover:text-indigo-600 transition-colors">
               <MessageSquare size={18}/> My Requests
             </button>
             <button className="flex items-center gap-2 text-indigo-600 bg-indigo-50 px-5 py-2.5 rounded-2xl">
@@ -99,7 +105,6 @@ function Dashboard() {
 
       <div className="max-w-7xl mx-auto px-6 pt-12 space-y-12">
         
-        {/* 2. WELCOME BANNER */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
           className="bg-gradient-to-br from-indigo-600 via-indigo-700 to-violet-800 rounded-[3rem] p-16 text-white shadow-2xl relative overflow-hidden"
@@ -114,7 +119,6 @@ function Dashboard() {
           <Sparkles className="absolute right-10 top-10 text-white opacity-10 w-48 h-48" />
         </motion.div>
 
-        {/* 3. THE 4 STATS CARDS (Pulling from Spring Boot) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
           <StatCard icon={<Gift />} label="Skills Offered" value={stats.offered} color="text-indigo-600" bg="bg-indigo-50" />
           <StatCard icon={<BookOpen />} label="Wanted Found" value={stats.wanted} color="text-emerald-600" bg="bg-emerald-50" />
@@ -122,7 +126,6 @@ function Dashboard() {
           <StatCard icon={<Users />} label="Connections" value={activeConnections} color="text-blue-600" bg="bg-blue-50" />
         </div>
 
-        {/* 4. THE 6 EXTRA BIG SQUARE BOXES */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
           <BigBox 
             title="Recommended Skills" 
@@ -134,7 +137,7 @@ function Dashboard() {
             desc={`You have ${pendingRequests.length} requests. Review people who want to learn from you.`} 
             icon={<Bell size={40} className="text-rose-500" />} 
             badge={pendingRequests.length > 0 ? `${pendingRequests.length} New` : null}
-            onClick={() => navigate("/exchange-form")}
+            onClick={() => navigate("/my-requests")}
           />
           <BigBox 
             title="My Sent Requests" 

@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Mail, Loader2, Edit2, X, Plus, Sparkles, MapPin } from 'lucide-react';
+import { Mail, Loader2, Edit2, X, Plus, Sparkles, MapPin, BookOpen, GraduationCap } from 'lucide-react';
 import axiosInstance from '../api/axiosInstance'; 
 
 const Profile = () => {
     const [isSaving, setIsSaving] = useState(false);
     const [isEditing, setIsEditing] = useState(false); 
     
-    // ✅ IMPROVED: Check all possible keys where the ID might be stored
-    const userId = localStorage.getItem('userId') || localStorage.getItem('skillgrid_userId');
+    const getUserId = () => localStorage.getItem('userId') || localStorage.getItem('skillgrid_userId');
+    const userId = getUserId();
     const isValidUser = userId && userId !== "undefined" && userId !== "null";
 
     const [formData, setFormData] = useState({
@@ -22,7 +22,7 @@ const Profile = () => {
     const [offeredInput, setOfferedInput] = useState('');
     const [wantedInput, setWantedInput] = useState('');
 
-    // Load user data
+    // ✅ FETCH DATA: This prevents the "vanishing" issue by loading from DB on mount
     useEffect(() => {
         if (!isValidUser) return;
 
@@ -31,7 +31,6 @@ const Profile = () => {
                 const response = await axiosInstance.get(`/user/${userId}`);
                 const user = response.data;
                 
-                // ✅ Ensure we map the backend fields correctly
                 setFormData({
                     name: user.name || '',
                     email: user.email || '',
@@ -75,30 +74,27 @@ const Profile = () => {
 
     const handleSave = async (e) => {
         e.preventDefault();
-        
-        if (!isValidUser) {
-            alert("Session Error: Please log out and log back in to refresh your ID.");
+        const currentId = getUserId();
+        if (!currentId || currentId === "undefined") {
+            alert("Session Error: Please re-login.");
             return;
         }
 
         setIsSaving(true);
         try {
-            // ✅ The payload we send back to Spring Boot
-            const payload = {
+            // ✅ Data is saved to the 'baseUser' collection in MongoDB
+            await axiosInstance.put(`/user/${currentId}`, {
                 ...formData,
-                id: userId // Some backends require the ID inside the body too
-            };
-
-            await axiosInstance.put(`/user/${userId}`, payload);
+                id: currentId 
+            });
             
             setIsSaving(false);
             setIsEditing(false);
-            alert("Profile successfully saved to database!");
+            alert("Profile saved to Database!");
         } catch (error) {
-            console.error("Database Save Error:", error);
+            console.error("Save Error:", error);
             setIsSaving(false);
-            const errorMsg = error.response?.data?.message || error.response?.data || "Server error while saving.";
-            alert(`Error: ${errorMsg}`);
+            alert("Failed to save profile.");
         }
     };
 
@@ -106,12 +102,15 @@ const Profile = () => {
         <div className="min-h-screen bg-gradient-to-br from-slate-50 to-indigo-100 p-6 flex justify-center items-start">
             <div className="w-full max-w-2xl bg-white/90 backdrop-blur-md shadow-2xl rounded-3xl border border-white p-8">
                 
-                <div className="flex justify-between items-center mb-10">
+                {/* Header */}
+                <div className="flex justify-between items-center mb-6">
                     <div>
                         <h1 className="text-3xl font-black text-slate-800 flex items-center gap-2">
                             <Sparkles className="text-yellow-500 w-6 h-6" /> My Profile
                         </h1>
-                        <p className="text-slate-500 text-sm mt-1">ID: {isValidUser ? userId : "Missing"}</p>
+                        <p className="text-slate-500 text-sm mt-1">
+                            Status: {isValidUser ? <span className="text-emerald-600 font-bold">Connected</span> : <span className="text-rose-600 font-bold">Disconnected</span>}
+                        </p>
                     </div>
                     <button 
                         type="button"
@@ -122,9 +121,31 @@ const Profile = () => {
                     </button>
                 </div>
 
+                {/* ✅ INCREMENT BOXES (Counters) */}
+                <div className="grid grid-cols-2 gap-4 mb-10">
+                    <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-2xl flex items-center gap-4">
+                        <div className="bg-indigo-600 p-3 rounded-xl text-white">
+                            <GraduationCap className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <p className="text-xs font-bold text-indigo-400 uppercase tracking-wider">Offered</p>
+                            <p className="text-2xl font-black text-indigo-900">{formData.skillsOffered.length}</p>
+                        </div>
+                    </div>
+                    <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-2xl flex items-center gap-4">
+                        <div className="bg-emerald-500 p-3 rounded-xl text-white">
+                            <BookOpen className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <p className="text-xs font-bold text-emerald-400 uppercase tracking-wider">Wanted</p>
+                            <p className="text-2xl font-black text-emerald-900">{formData.skillsWanted.length}</p>
+                        </div>
+                    </div>
+                </div>
+
                 {!isValidUser && (
                     <div className="mb-6 p-4 bg-rose-100 text-rose-800 rounded-2xl border border-rose-200 text-sm font-bold flex items-center gap-2">
-                        <X className="w-5 h-5" /> ⚠️ Your login session is broken. Please re-login.
+                        <X className="w-5 h-5" /> ⚠️ Session Missing. Please log in again.
                     </div>
                 )}
 
@@ -137,7 +158,7 @@ const Profile = () => {
                                 value={formData.name} 
                                 onChange={handleInputChange} 
                                 readOnly={!isEditing} 
-                                className="w-full px-4 py-3 rounded-2xl border-2 bg-white outline-none focus:border-indigo-500 disabled:bg-slate-50 transition-all border-slate-100" 
+                                className="w-full px-4 py-3 rounded-2xl border-2 bg-white outline-none focus:border-indigo-500 transition-all border-slate-100 read-only:bg-slate-50/50" 
                             />
                         </div>
                         <div className="space-y-2">
@@ -150,7 +171,7 @@ const Profile = () => {
                                     onChange={handleInputChange}
                                     readOnly={!isEditing} 
                                     placeholder="City, Country"
-                                    className="w-full pl-11 pr-4 py-3 rounded-2xl border-2 bg-white outline-none focus:border-indigo-500 disabled:bg-slate-50 border-slate-100" 
+                                    className="w-full pl-11 pr-4 py-3 rounded-2xl border-2 bg-white outline-none focus:border-indigo-500 border-slate-100 read-only:bg-slate-50/50" 
                                 />
                             </div>
                         </div>
@@ -187,7 +208,7 @@ const Profile = () => {
                             readOnly={!isEditing} 
                             rows="3" 
                             placeholder="Tell the community who you are..."
-                            className="w-full p-4 rounded-2xl border-2 bg-white outline-none resize-none focus:border-indigo-500 transition-all border-slate-100" 
+                            className="w-full p-4 rounded-2xl border-2 bg-white outline-none resize-none focus:border-indigo-500 transition-all border-slate-100 read-only:bg-slate-50/50" 
                         />
                     </div>
 
@@ -195,9 +216,9 @@ const Profile = () => {
                         <button 
                             type="submit" 
                             disabled={isSaving || !isValidUser} 
-                            className="w-full py-4 rounded-2xl font-black text-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-all flex justify-center disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-indigo-100"
+                            className="w-full py-4 rounded-2xl font-black text-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-all flex justify-center items-center disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-indigo-100"
                         >
-                            {isSaving ? <Loader2 className="animate-spin" /> : 'Confirm & Save to Database'}
+                            {isSaving ? <Loader2 className="animate-spin w-6 h-6" /> : 'Confirm & Save to Database'}
                         </button>
                     )}
                 </form>
@@ -206,7 +227,6 @@ const Profile = () => {
     );
 };
 
-// SkillSection component remains mostly same, added hover effects
 const SkillSection = ({ title, skills, inputValue, setInputValue, onAdd, onRemove, isEditing, accentColor }) => (
     <div className="space-y-3">
         <label className="text-sm font-bold text-slate-700 ml-1">{title}</label>
@@ -243,9 +263,6 @@ const SkillSection = ({ title, skills, inputValue, setInputValue, onAdd, onRemov
                     )}
                 </div>
             ))}
-            {skills.length === 0 && !isEditing && (
-                <span className="text-sm text-slate-400 italic ml-1">No skills listed.</span>
-            )}
         </div>
     </div>
 );
