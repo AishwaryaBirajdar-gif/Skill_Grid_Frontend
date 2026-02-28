@@ -1,71 +1,26 @@
 import React, { useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import axiosInstance from '../api/axiosInstance';
 import { Send, Loader2, Zap, MessageSquare, Briefcase, BookOpen } from 'lucide-react';
 
-// --- Re-using the Mock API Call function with Exponential Backoff ---
-const apiCall = async (url, options = {}) => {
-    // NOTE: This is a placeholder function. In a real application, 
-    // you must handle JWT token inclusion in the Authorization header.
-    const maxRetries = 3;
-    let attempt = 0;
-
-    while (attempt < maxRetries) {
-        try {
-            // Simulate successful POST response
-            if (url.includes('/api/exchanges') && options.method === 'POST') {
-                const payload = JSON.parse(options.body);
-                // Simulate network delay
-                await new Promise(resolve => setTimeout(resolve, 1500));
-                
-                const mockResponse = {
-                    ...payload,
-                    id: 'exchange-' + Date.now(),
-                    status: 'PENDING',
-                    createdAt: new Date().toISOString()
-                };
-                return mockResponse;
-            }
-
-            // Simulate the required GET skill detail call
-            if (url.includes('/api/skills/s-101')) {
-                 await new Promise(resolve => setTimeout(resolve, 500));
-                 return mockTargetSkill;
-            }
-
-            throw new Error('Mock endpoint not found or unsupported method.');
-        } catch (error) {
-            attempt++;
-            if (attempt >= maxRetries) {
-                console.error(`Failed API call to ${url} after ${maxRetries} attempts.`, error);
-                throw error;
-            }
-            const delay = Math.pow(2, attempt) * 1000;
-            console.warn(`Retrying API call to ${url} in ${delay / 1000}s... (Attempt ${attempt})`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-        }
-    }
-};
-
-// Mock data for the specific skill being requested (s-101 from BrowseSkills.jsx)
-const mockTargetSkill = {
-    id: 's-101',
-    name: 'Conversational Spanish (Intermediate)',
-    category: 'Languages',
-    listingType: 'OFFERING',
-    exchangePreferences: 'Seeking equivalent skill exchange in photography or a flat hourly rate.',
-    postedBy: { name: 'Maria L.', id: 'user-maria' }
-};
-
-
 const ExchangeForm = () => {
-    // In a real app, skillId would come from route parameters (e.g., useParams() in React Router)
-    const skillId = 's-101'; 
-    const requesterId = 'current-user-567'; // Mock ID for the user making the request
-    const providerId = mockTargetSkill.postedBy.id; // Target user ID
+    const location = useLocation();
+    const navigate = useNavigate();
+    
+    const selectedSkill = location.state?.skill || {
+        id: 'manual-id',
+        name: 'General Skill',
+        postedBy: { name: 'User', id: 'unknown' },
+        exchangePreferences: 'Not specified'
+    };
+
+    const currentUserId = localStorage.getItem('userId') || localStorage.getItem('skillgrid_userId');
+    // ✅ Grab current user's name with a fallback
+    const currentUserName = localStorage.getItem('userName') || "Me"; 
 
     const [formState, setFormState] = useState({
-        message: `Hello ${mockTargetSkill.postedBy.name}, I am very interested in your skill! I propose we meet twice a week virtually.`,
-        proposedExchangeDetails: 'I can offer $25/hour or a 4-session intro to photo editing in Adobe Lightroom.',
-        preferredStatus: 'PENDING'
+        message: `Hello, I am interested in your ${selectedSkill.name} skill!`,
+        proposedExchangeDetails: '',
     });
     
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -79,43 +34,43 @@ const ExchangeForm = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (!currentUserId) {
+            setError("Please log in to send a request.");
+            return;
+        }
+
         setIsSubmitting(true);
         setMessage('');
         setError(null);
 
-        // The payload maps to the Java Exchange DTO/Model
+        // ✅ Robust Payload: Captures names from multiple possible locations 
+        // to prevent "Unknown User"
         const exchangePayload = {
-            skillId: skillId,
-            requesterId: requesterId,
-            providerId: providerId,
+            senderId: currentUserId,
+            senderName: currentUserName,
+            receiverId: selectedSkill.userId || selectedSkill.postedBy?.id || selectedSkill.postedBy?._id,
+            receiverName: selectedSkill.userName || selectedSkill.postedBy?.name || selectedSkill.author || 'Skill Member',
+            skillRequested: selectedSkill.name,
+            skillOffered: formState.proposedExchangeDetails,
             message: formState.message,
-            proposedExchangeDetails: formState.proposedExchangeDetails,
-            status: formState.preferredStatus,
-            // Additional fields (like skillName, providerName) are often stored 
-            // in the Exchange object for easy retrieval, though often derived on the backend.
-            skillName: mockTargetSkill.name, 
-            providerName: mockTargetSkill.postedBy.name,
+            status: 'PENDING'
         };
 
         try {
-            // Calling the POST /api/exchanges endpoint
-            const newExchange = await apiCall('/api/exchanges', {
-                method: 'POST',
-                body: JSON.stringify(exchangePayload)
-            });
-
-            setMessage(`Success! Your exchange request (ID: ${newExchange.id}) has been sent to ${mockTargetSkill.postedBy.name}.`);
+            // ✅ This sends the request to your MongoDB via Spring Boot
+            await axiosInstance.post('/requests/send', exchangePayload);
             
-            // Optionally redirect user here
+            setMessage(`Success! Your request has been sent to ${exchangePayload.receiverName}.`);
             
+            // Redirect so the user sees the updated "Sent" list
+            setTimeout(() => navigate('/my-requests'), 2000);
         } catch (err) {
-            setError('Failed to send exchange request. Please check your network connection.');
-            console.error(err);
+            setError('Failed to send request. Make sure your Backend is running.');
+            console.error("Database Error:", err);
         } finally {
             setIsSubmitting(false);
         }
     };
-
 
     return (
         <div className="min-h-screen bg-gray-50 p-4 sm:p-8 flex justify-center">
@@ -128,18 +83,18 @@ const ExchangeForm = () => {
                         Initiate Skill Exchange
                     </h1>
                     <p className="mt-1 text-gray-500">
-                        Request **{mockTargetSkill.name}** from **{mockTargetSkill.postedBy.name}**.
+                        Requesting **{selectedSkill.name}** from **{selectedSkill.userName || selectedSkill.postedBy?.name || 'User'}**
                     </p>
                 </div>
 
                 {/* Status Messages */}
                 {message && (
-                    <div className="p-4 mx-6 mt-4 bg-green-100 border-l-4 border-green-500 text-green-700 rounded-lg animate-fadeIn">
+                    <div className="p-4 mx-6 mt-4 bg-green-100 border-l-4 border-green-500 text-green-700 rounded-lg animate-pulse">
                         {message}
                     </div>
                 )}
                 {error && (
-                    <div className="p-4 mx-6 mt-4 bg-red-100 border-l-4 border-red-500 text-red-700 rounded-lg animate-fadeIn">
+                    <div className="p-4 mx-6 mt-4 bg-red-100 border-l-4 border-red-500 text-red-700 rounded-lg">
                         {error}
                     </div>
                 )}
@@ -148,18 +103,15 @@ const ExchangeForm = () => {
                 <div className="p-6 mx-6 mt-6 bg-white border border-indigo-200 rounded-lg shadow-inner">
                     <div className="flex items-center text-sm mb-2 font-semibold">
                         <BookOpen className="w-4 h-4 mr-2 text-indigo-500" />
-                        Skill: <span className="ml-2 font-bold text-indigo-800">{mockTargetSkill.name}</span>
+                        Skill: <span className="ml-2 font-bold text-indigo-800">{selectedSkill.name}</span>
                     </div>
                     <div className="flex items-center text-sm">
                         <Briefcase className="w-4 h-4 mr-2 text-indigo-500" />
-                        Preferred Exchange: <span className="ml-2 text-gray-600">{mockTargetSkill.exchangePreferences}</span>
+                        Preferences: <span className="ml-2 text-gray-600">{selectedSkill.exchangePreferences || "No preferences listed"}</span>
                     </div>
                 </div>
 
-                {/* Exchange Form */}
                 <form onSubmit={handleSubmit} className="p-6 sm:p-8">
-                    
-                    {/* Message to Provider */}
                     <div className="mb-6">
                         <Label htmlFor="message" icon={MessageSquare} text="Personalized Request Message" />
                         <textarea
@@ -169,16 +121,13 @@ const ExchangeForm = () => {
                             value={formState.message}
                             onChange={handleChange}
                             required
-                            maxLength="500"
-                            className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500"
-                            placeholder="Introduce yourself and explain why you want to learn this skill."
+                            className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                            placeholder="Introduce yourself and explain why you'd like to learn this skill..."
                         />
-                        <p className="mt-1 text-xs text-gray-400">Max 500 characters.</p>
                     </div>
 
-                    {/* Proposed Exchange Details */}
                     <div className="mb-6">
-                        <Label htmlFor="proposedExchangeDetails" icon={Briefcase} text="Your Proposed Exchange / Barter Offer" />
+                        <Label htmlFor="proposedExchangeDetails" icon={Briefcase} text="What skill will you give in return?" />
                         <textarea
                             id="proposedExchangeDetails"
                             name="proposedExchangeDetails"
@@ -186,44 +135,33 @@ const ExchangeForm = () => {
                             value={formState.proposedExchangeDetails}
                             onChange={handleChange}
                             required
-                            maxLength="300"
-                            className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500"
-                            placeholder="Detail what you are offering in return (e.g., your skill, money, time commitment)."
+                            className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                            placeholder="e.g., I am an expert in Python and can teach you data basics..."
                         />
-                        <p className="mt-1 text-xs text-gray-400">Max 300 characters.</p>
                     </div>
 
-
-                    {/* Submit Button */}
                     <div className="mt-8 pt-6 border-t border-gray-100">
                         <button
                             type="submit"
                             disabled={isSubmitting}
-                            className={`w-full flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-md transition duration-200 ${
-                                isSubmitting
-                                    ? 'bg-indigo-400 text-white cursor-not-allowed'
-                                    : 'bg-indigo-600 text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'
+                            className={`w-full flex items-center justify-center px-6 py-4 border border-transparent text-lg font-bold rounded-xl shadow-lg transition-all duration-200 ${
+                                isSubmitting 
+                                ? 'bg-indigo-400 text-white cursor-not-allowed' 
+                                : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:-translate-y-1 active:translate-y-0'
                             }`}
                         >
-                            {isSubmitting ? (
-                                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                            ) : (
-                                <Send className="w-5 h-5 mr-2" />
-                            )}
-                            {isSubmitting ? 'Sending Request...' : 'Submit Exchange Request'}
+                            {isSubmitting ? <Loader2 className="w-6 h-6 mr-2 animate-spin" /> : <Send className="w-6 h-6 mr-2" />}
+                            {isSubmitting ? 'Processing Request...' : 'Confirm & Send Request'}
                         </button>
                     </div>
-
                 </form>
-
             </div>
         </div>
     );
 };
 
-// Reusable Label Component
 const Label = ({ htmlFor, icon: Icon, text }) => (
-    <label htmlFor={htmlFor} className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
+    <label htmlFor={htmlFor} className="block text-sm font-bold text-gray-700 mb-2 flex items-center">
         {Icon && <Icon className="w-4 h-4 mr-2 text-indigo-500" />}
         {text}
     </label>

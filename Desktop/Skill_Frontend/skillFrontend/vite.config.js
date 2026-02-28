@@ -8,6 +8,10 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  define: {
+    // This fixes the "Uncaught ReferenceError: global is not defined" error from SockJS
+    global: 'window',
+  },
   server: {
     // This fixes the WebSocket / HMR connection errors
     hmr: {

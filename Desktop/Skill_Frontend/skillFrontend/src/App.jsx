@@ -15,6 +15,7 @@ import ExchangeForm from "./pages/ExchangeForm.jsx";
 import SkillForm from "./pages/SkillForm.jsx";
 import Requests from './pages/Requests';
 import MyRequests from './pages/MyRequests';
+import ChatPage from './component/ChatPage'; // Using this for the main chat logic
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -46,7 +47,10 @@ function App() {
         <Route path="/requests" element={<Requests />} />
         <Route path="/my-requests" element={<MyRequests />} />
 
-        {/* ✅ SAFETY CATCH-ALL: If you visit a broken link, this shows on screen */}
+        {/* ✅ Single Chat Route: Matches the requestId logic in ChatPage.jsx */}
+        <Route path="/chat/:requestId" element={<ChatPage />} />
+        
+        {/* ✅ SAFETY CATCH-ALL */}
         <Route 
           path="*" 
           element={
