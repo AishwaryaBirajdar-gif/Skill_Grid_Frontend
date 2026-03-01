@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import axiosInstance from "../api/axiosInstance"; 
 import { 
   Gift, BookOpen, Clock, Users, Zap, Layers, 
-  Home, Search, MessageSquare, LayoutDashboard, Send, Award, TrendingUp, Sparkles, Bell
+  Home, Search, MessageSquare, LayoutDashboard, Send, Award, TrendingUp, Sparkles, Bell, ArrowRightLeft
 } from "lucide-react";
 
 function Dashboard() {
@@ -23,6 +23,7 @@ function Dashboard() {
   const [incomingPendingCount, setIncomingPendingCount] = useState(0); 
   const [sentRequests, setSentRequests] = useState([]); 
   const [activeConnections, setActiveConnections] = useState(0);
+  const [matchesCount, setMatchesCount] = useState(0); // New state for suggestions
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -33,15 +34,18 @@ function Dashboard() {
 
       setIsLoading(true);
       try {
+        // 1. Fetch User Profile
         const userRes = await axiosInstance.get(`/user/${userId}`);
         const user = userRes.data;
 
+        // 2. Fetch Requests
         const incomingRes = await axiosInstance.get(`/requests/my-requests/${userId}`);
         const incoming = incomingRes.data;
         
         const sentRes = await axiosInstance.get(`/requests/sent/${userId}`);
         const sent = sentRes.data;
 
+        // 3. Logic for Stats
         const pendingIncoming = incoming.filter(req => req.status === "PENDING");
         const pendingSent = sent.filter(req => req.status === "PENDING");
         const totalPending = pendingIncoming.length + pendingSent.length;
@@ -50,6 +54,19 @@ function Dashboard() {
           ...incoming.filter(req => req.status === "ACCEPTED"),
           ...sent.filter(req => req.status === "ACCEPTED")
         ].length;
+
+        // 4. Smart Matches Suggestion Logic (Local simulation or API call)
+        // This counts potential partners where your 'wants' meet their 'offers'
+        const allUsersRes = await axiosInstance.get('/user/browse?skill='); // Assuming a general fetch
+        const myWants = user.skillsWanted || [];
+        const myOffers = user.skillsOffered || [];
+        
+        const potentialMatches = allUsersRes.data.filter(u => {
+            if (u.id === userId) return false;
+            const theyHaveWhatIWant = u.skillsOffered?.some(s => myWants.includes(s));
+            const theyWantWhatIHave = u.skillsWanted?.some(s => myOffers.includes(s));
+            return theyHaveWhatIWant && theyWantWhatIHave;
+        });
 
         setStats({
           offered: user.skillsOffered?.length || 0,
@@ -60,6 +77,7 @@ function Dashboard() {
         setIncomingPendingCount(pendingIncoming.length);
         setSentRequests(sent); 
         setActiveConnections(connectionsCount);
+        setMatchesCount(potentialMatches.length);
         setUserName(user.name || "User");
         
       } catch (error) {
@@ -123,18 +141,41 @@ function Dashboard() {
           <StatCard icon={<Users />} label="Connections" value={activeConnections} color="text-blue-600" bg="bg-blue-50" />
         </div>
 
+        {/* Updated BigBox Grid with Smart Matches */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-          <BigBox title="Incoming Requests" desc={`You have ${incomingPendingCount} requests waiting for approval.`} icon={<Bell size={40} className="text-rose-500" />} badge={incomingPendingCount > 0 ? `${incomingPendingCount} New` : null} onClick={() => navigate("/my-requests")} />
-          <BigBox title="My Sent Requests" desc={`You have sent ${sentRequests.length} proposals.`} icon={<Send size={40} className="text-blue-500" />} onClick={() => navigate("/my-requests")} />
-          <BigBox title="Active Rooms" desc="Ongoing exchanges. Jump back into your chats." icon={<MessageSquare size={40} className="text-emerald-500" />} onClick={() => navigate("/my-requests")} />
-          <BigBox title="Trending Skills" desc="Explore popular skills on SkillGrid." icon={<TrendingUp size={40} className="text-violet-500" />} onClick={() => navigate("/browse-skill")} />
+          <BigBox 
+            title="Smart Matches" 
+            desc="Find partners who want what you teach and offer what you need." 
+            icon={<ArrowRightLeft size={40} className="text-amber-500" />} 
+            badge={matchesCount > 0 ? `${matchesCount} Matches` : null} 
+            onClick={() => navigate("/suggestions")} 
+          />
+          <BigBox 
+            title="Incoming Requests" 
+            desc={`You have ${incomingPendingCount} requests waiting for approval.`} 
+            icon={<Bell size={40} className="text-rose-500" />} 
+            badge={incomingPendingCount > 0 ? `${incomingPendingCount} New` : null} 
+            onClick={() => navigate("/my-requests")} 
+          />
+          <BigBox 
+            title="Active Rooms" 
+            desc="Ongoing exchanges. Jump back into your chats." 
+            icon={<MessageSquare size={40} className="text-emerald-500" />} 
+            onClick={() => navigate("/my-requests")} 
+          />
+          <BigBox 
+            title="Trending Skills" 
+            desc="Explore popular skills on SkillGrid." 
+            icon={<TrendingUp size={40} className="text-violet-500" />} 
+            onClick={() => navigate("/browse-skill")} 
+          />
         </div>
       </div>
     </div>
   );
 }
 
-// ✅ DEFINING THE MISSING COMPONENTS BELOW
+// StatCard and BigBox components remain the same...
 const StatCard = ({ icon, label, value, color, bg }) => (
   <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 hover:shadow-lg transition-all">
     <div className={`w-14 h-14 ${bg} ${color} rounded-2xl flex items-center justify-center mb-6`}>
