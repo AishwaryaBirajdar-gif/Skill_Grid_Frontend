@@ -23,7 +23,7 @@ function Dashboard() {
   const [incomingPendingCount, setIncomingPendingCount] = useState(0); 
   const [sentRequests, setSentRequests] = useState([]); 
   const [activeConnections, setActiveConnections] = useState(0);
-  const [matchesCount, setMatchesCount] = useState(0); // New state for suggestions
+  const [matchesCount, setMatchesCount] = useState(0); 
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -34,18 +34,15 @@ function Dashboard() {
 
       setIsLoading(true);
       try {
-        // 1. Fetch User Profile
         const userRes = await axiosInstance.get(`/user/${userId}`);
         const user = userRes.data;
 
-        // 2. Fetch Requests
         const incomingRes = await axiosInstance.get(`/requests/my-requests/${userId}`);
         const incoming = incomingRes.data;
         
         const sentRes = await axiosInstance.get(`/requests/sent/${userId}`);
         const sent = sentRes.data;
 
-        // 3. Logic for Stats
         const pendingIncoming = incoming.filter(req => req.status === "PENDING");
         const pendingSent = sent.filter(req => req.status === "PENDING");
         const totalPending = pendingIncoming.length + pendingSent.length;
@@ -55,9 +52,7 @@ function Dashboard() {
           ...sent.filter(req => req.status === "ACCEPTED")
         ].length;
 
-        // 4. Smart Matches Suggestion Logic (Local simulation or API call)
-        // This counts potential partners where your 'wants' meet their 'offers'
-        const allUsersRes = await axiosInstance.get('/user/browse?skill='); // Assuming a general fetch
+        const allUsersRes = await axiosInstance.get('/user/browse?skill='); 
         const myWants = user.skillsWanted || [];
         const myOffers = user.skillsOffered || [];
         
@@ -141,7 +136,6 @@ function Dashboard() {
           <StatCard icon={<Users />} label="Connections" value={activeConnections} color="text-blue-600" bg="bg-blue-50" />
         </div>
 
-        {/* Updated BigBox Grid with Smart Matches */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
           <BigBox 
             title="Smart Matches" 
@@ -169,13 +163,32 @@ function Dashboard() {
             icon={<TrendingUp size={40} className="text-violet-500" />} 
             onClick={() => navigate("/browse-skill")} 
           />
+          
+          {/* New AI Path Suggestion Box */}
+          <BigBox 
+            title="AI Path Suggestion" 
+            desc="Get a personalized learning roadmap based on your current skills." 
+            icon={<Sparkles size={40} className="text-indigo-500" />} 
+            onClick={() => {
+    // Save the FULL list of offered skills
+    localStorage.setItem('userSkills', stats.offeredSkills || ""); 
+    navigate("/ai-path");
+  }} 
+          />
+
+          {/* New Skill Demand Forecasting Box */}
+          <BigBox 
+            title="Skill Demand Forecasting" 
+            desc="See which skills will be most valuable in the coming months." 
+            icon={<Zap size={40} className="text-blue-500" />} 
+            onClick={() => navigate("/skill-demand")} 
+          />
         </div>
       </div>
     </div>
   );
 }
 
-// StatCard and BigBox components remain the same...
 const StatCard = ({ icon, label, value, color, bg }) => (
   <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 hover:shadow-lg transition-all">
     <div className={`w-14 h-14 ${bg} ${color} rounded-2xl flex items-center justify-center mb-6`}>
@@ -200,4 +213,4 @@ const BigBox = ({ title, desc, icon, badge, onClick }) => (
   </div>
 );
 
-export default Dashboard;
+export default Dashboard
