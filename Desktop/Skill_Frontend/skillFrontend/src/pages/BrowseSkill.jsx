@@ -1,207 +1,363 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../api/axiosInstance';
-import { Search, User, ArrowRightLeft, Send, CheckCircle, X } from 'lucide-react';
+import {
+    Search,
+    User
+} from 'lucide-react';
 
 const BrowseSkills = () => {
+
+    const [allSkills, setAllSkills] = useState([]);
+    const [filteredSkills, setFilteredSkills] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
-    const [users, setUsers] = useState([]);
+    const [userCache, setUserCache] = useState({});
+
     const [myProfile, setMyProfile] = useState(null);
-    const [loading, setLoading] = useState(false);
-    const [requestStatus, setRequestStatus] = useState({});
-    
-    // Modal State
+
     const [showModal, setShowModal] = useState(false);
-    const [selectedUser, setSelectedUser] = useState(null);
-    const [offeredSkill, setOfferedSkill] = useState('');
+    const [selectedSkill, setSelectedSkill] = useState(null);
+
+    // store selected offered skill object
+    const [offeredSkill, setOfferedSkill] = useState(null);
 
     const currentUserId = localStorage.getItem('userId');
 
+    const navigate = useNavigate();
+
+    // ---------------- FETCH MY PROFILE ----------------
     useEffect(() => {
+
         const fetchMyProfile = async () => {
+
             try {
+
                 const res = await axiosInstance.get(`/user/${currentUserId}`);
+
                 setMyProfile(res.data);
+
+                // default selected skill
                 if (res.data.skillsOffered?.length > 0) {
                     setOfferedSkill(res.data.skillsOffered[0]);
                 }
+
             } catch (err) {
-                console.error("Error fetching your profile", err);
+                console.error("Profile fetch error:", err);
             }
         };
-        fetchMyProfile();
+
+        if (currentUserId) {
+            fetchMyProfile();
+        }
+
     }, [currentUserId]);
 
-    const handleSearch = async (e) => {
-        e.preventDefault();
-        setLoading(true);
+    // ---------------- FETCH ALL SKILLS ----------------
+    useEffect(() => {
+
+        const fetchSkills = async () => {
+
+            try {
+
+                const res = await axiosInstance.get(`/skills`);
+
+                // show only OFFERED skills
+                const offered = res.data.filter(
+                    skill => skill.type === "OFFERED"
+                );
+
+                // ❌ REMOVE MY OWN SKILLS
+                const otherUsersSkills = offered.filter(
+                    skill => skill.userId !== currentUserId
+                );
+
+                setAllSkills(otherUsersSkills);
+                setFilteredSkills(otherUsersSkills);
+
+                // preload user data
+                otherUsersSkills.forEach(skill =>
+                    fetchUser(skill.userId)
+                );
+
+            } catch (err) {
+                console.error("Error fetching skills:", err);
+            }
+        };
+
+        fetchSkills();
+
+    }, [currentUserId]);
+
+    // ---------------- FETCH USER ----------------
+    const fetchUser = async (userId) => {
+
+        if (userCache[userId]) return;
+
         try {
-            const res = await axiosInstance.get(`/user/browse?skill=${searchTerm}`);
-            setUsers(res.data.filter(u => u.id !== currentUserId));
+
+            const res = await axiosInstance.get(`/user/${userId}`);
+
+            setUserCache(prev => ({
+                ...prev,
+                [userId]: res.data
+            }));
+
         } catch (err) {
-            console.error("Search failed", err);
-        } finally {
-            setLoading(false);
+            console.error("User fetch error:", err);
         }
     };
 
-    const openRequestModal = (user) => {
-        setSelectedUser(user);
-        // Auto-select a matching skill if available
-        const match = myProfile?.skillsOffered.find(s => user.skillsWanted.includes(s));
-        setOfferedSkill(match || myProfile?.skillsOffered[0] || "");
+    // ---------------- SEARCH ----------------
+    useEffect(() => {
+
+        if (!searchTerm.trim()) {
+            setFilteredSkills(allSkills);
+            return;
+        }
+
+        const lower = searchTerm.toLowerCase();
+
+        const filtered = allSkills.filter(skill =>
+            skill.skillName?.toLowerCase().includes(lower) ||
+            skill.category?.toLowerCase().includes(lower) ||
+            skill.description?.toLowerCase().includes(lower)
+        );
+
+        setFilteredSkills(filtered);
+
+    }, [searchTerm, allSkills]);
+
+    // ---------------- OPEN MODAL ----------------
+    const openRequestModal = (skill) => {
+
+        setSelectedSkill(skill);
         setShowModal(true);
+
+        if (myProfile?.skillsOffered?.length > 0) {
+            setOfferedSkill(myProfile.skillsOffered[0]);
+        }
     };
 
-    const confirmAndSendRequest = async () => {
+    // ---------------- SEND REQUEST ----------------
+    const sendRequest = async () => {
+
+        if (!selectedSkill) {
+            alert("No skill selected.");
+            return;
+        }
+
+        if (!offeredSkill) {
+            alert("Please select a skill to offer.");
+            return;
+        }
+
+        // receiver = owner of clicked skill
+        const receiverId = selectedSkill.userId;
+
+        // prevent self request
+        if (receiverId === currentUserId) {
+            alert("You cannot send request to yourself.");
+            return;
+        }
+
         const payload = {
             senderId: currentUserId,
-            receiverId: selectedUser.id,
-            skillRequested: searchTerm,
-            skillOffered: offeredSkill,
+            receiverId: receiverId,
+            skillRequested: selectedSkill.skillName,
+            skillOffered: offeredSkill.skillName,
             status: "PENDING"
         };
 
+        console.log("FINAL REQUEST PAYLOAD:", payload);
+
         try {
+
             await axiosInstance.post('/requests/send', payload);
-            setRequestStatus(prev => ({ ...prev, [selectedUser.id]: 'SENT' }));
+
+            alert("Request sent successfully!");
+
             setShowModal(false);
-            alert(`Request sent to ${selectedUser.name}!`);
+
+            // redirect to requests page
+            navigate('/requests');
+
         } catch (err) {
+
+            console.error("Request send error:", err);
+
             alert("Failed to send request.");
         }
     };
 
+    // ---------------- UI ----------------
     return (
-        <div className="min-h-screen bg-slate-50 p-8">
-            <div className="max-w-6xl mx-auto">
-                <h1 className="text-4xl font-black text-slate-800 mb-8">Browse Skills</h1>
 
-                {/* Search Bar */}
-                <form onSubmit={handleSearch} className="relative mb-12">
-                    <input 
-                        type="text"
-                        placeholder="What do you want to learn? (e.g. Java, Design)"
-                        className="w-full p-6 pl-16 rounded-3xl shadow-xl border-none focus:ring-4 focus:ring-indigo-300 text-lg"
+        <div className="min-h-screen bg-slate-50 p-8">
+
+            <div className="max-w-6xl mx-auto">
+
+                <h1 className="text-4xl font-black mb-6">
+                    Browse Skills
+                </h1>
+
+                {/* SEARCH */}
+                <div className="relative mb-10">
+
+                    <input
+                        className="w-full p-5 pl-14 rounded-2xl shadow border"
+                        placeholder="Search skills (React, Java, Design...)"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
-                    <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400" size={28} />
-                    <button type="submit" className="absolute right-4 top-1/2 -translate-y-1/2 bg-indigo-600 text-white px-8 py-3 rounded-2xl font-bold hover:bg-indigo-700 transition-all">
-                        Search
-                    </button>
-                </form>
 
-                {/* Results Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {users.map(user => {
-                        const isMatch = user.skillsWanted.some(skill => myProfile?.skillsOffered.includes(skill));
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
 
-                        return (
-                            <div key={user.id} className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 hover:shadow-xl transition-all flex flex-col justify-between">
-                                <div>
-                                    <div className="flex items-center gap-4 mb-6">
-                                        <div className="bg-indigo-100 p-4 rounded-2xl text-indigo-600">
-                                            <User size={32} />
-                                        </div>
-                                        <div>
-                                            <h3 className="text-xl font-bold text-slate-800">{user.name}</h3>
-                                            <p className="text-slate-500 text-sm">{user.location}</p>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-4 mb-8">
-                                        <div>
-                                            <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Offers</p>
-                                            <div className="flex flex-wrap gap-2">
-                                                {user.skillsOffered.map(s => <span key={s} className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold">{s}</span>)}
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Wants</p>
-                                            <div className="flex flex-wrap gap-2">
-                                                {user.skillsWanted.map(s => <span key={s} className="bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold">{s}</span>)}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {isMatch && (
-                                        <div className="bg-amber-50 text-amber-700 p-3 rounded-xl flex items-center gap-2 mb-6 text-sm font-bold">
-                                            <ArrowRightLeft size={16} /> Direct Barter Match!
-                                        </div>
-                                    )}
-                                </div>
-
-                                <button 
-                                    onClick={() => openRequestModal(user)}
-                                    disabled={requestStatus[user.id] === 'SENT'}
-                                    className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
-                                        requestStatus[user.id] === 'SENT' 
-                                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                                        : 'bg-slate-900 text-white hover:bg-indigo-600 shadow-lg'
-                                    }`}
-                                >
-                                    {requestStatus[user.id] === 'SENT' ? (
-                                        <><CheckCircle size={20}/> Request Sent</>
-                                    ) : (
-                                        <><Send size={20}/> Send Barter Request</>
-                                    )}
-                                </button>
-                            </div>
-                        );
-                    })}
                 </div>
-                
-                {users.length === 0 && !loading && (
-                    <div className="text-center py-20">
-                        <p className="text-slate-400 text-lg font-medium">Search for a skill to find barter partners!</p>
-                    </div>
-                )}
+
+                {/* SKILLS GRID */}
+                <div className="grid md:grid-cols-3 gap-6">
+
+                    {filteredSkills.length > 0 ? (
+
+                        filteredSkills.map(skill => {
+
+                            const user = userCache[skill.userId];
+
+                            return (
+
+                                <div
+                                    key={skill.id}
+                                    className="bg-white p-6 rounded-2xl shadow border"
+                                >
+
+                                    {/* USER INFO */}
+                                    <div className="flex items-center gap-3 mb-4">
+
+                                        <User />
+
+                                        <div>
+                                            <p className="font-bold">
+                                                {user?.name || "Loading..."}
+                                            </p>
+
+                                            <p className="text-xs text-gray-400">
+                                                {user?.location || "Unknown Location"}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* SKILL */}
+                                    <h2 className="text-lg font-bold">
+                                        {skill.skillName}
+                                    </h2>
+
+                                    <p className="text-sm text-gray-500 mt-2">
+                                        {skill.description}
+                                    </p>
+
+                                    {/* BADGES */}
+                                    <div className="flex gap-2 mt-3">
+
+                                        {skill.karmaPoints && (
+                                            <div className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-xs font-bold">
+                                                🪙 {skill.karmaPoints}
+                                            </div>
+                                        )}
+
+                                        {skill.depthLevel && (
+                                            <div className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold">
+                                                {skill.depthLevel}
+                                            </div>
+                                        )}
+
+                                    </div>
+
+                                    {/* BUTTON */}
+                                    <button
+                                        onClick={() => openRequestModal(skill)}
+                                        className="mt-4 w-full bg-black text-white py-2 rounded-xl hover:bg-gray-800 transition-all"
+                                    >
+                                        Send Request
+                                    </button>
+
+                                </div>
+                            );
+                        })
+
+                    ) : (
+
+                        <div className="text-gray-500">
+                            No skills found.
+                        </div>
+                    )}
+
+                </div>
             </div>
 
-            {/* --- BARTER REQUEST MODAL --- */}
+            {/* MODAL */}
             {showModal && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-[2rem] w-full max-w-md p-8 shadow-2xl relative animate-in fade-in zoom-in duration-200">
-                        <button onClick={() => setShowModal(false)} className="absolute right-6 top-6 text-slate-400 hover:text-slate-600">
-                            <X size={24} />
-                        </button>
-                        
-                        <h2 className="text-2xl font-black text-slate-800 mb-2">New Barter Request</h2>
-                        <p className="text-slate-500 mb-8 text-sm">Propose a skill exchange with <span className="font-bold text-indigo-600">{selectedUser?.name}</span></p>
 
-                        <div className="space-y-6">
-                            <div>
-                                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">You Want to Learn</label>
-                                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold text-slate-700 capitalize">
-                                    {searchTerm}
-                                </div>
-                            </div>
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
 
-                            <ArrowRightLeft className="mx-auto text-indigo-400" size={32} />
+                    <div className="bg-white p-6 rounded-2xl w-[400px]">
 
-                            <div>
-                                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">You Offer in Exchange</label>
-                                <select 
-                                    className="w-full p-4 bg-white rounded-2xl border-2 border-slate-100 focus:border-indigo-500 outline-none font-bold text-slate-700"
-                                    value={offeredSkill}
-                                    onChange={(e) => setOfferedSkill(e.target.value)}
+                        <h2 className="font-bold text-lg mb-3">
+                            Request Skill
+                        </h2>
+
+                        <p className="mb-4">
+                            Learn:
+                            <b> {selectedSkill?.skillName}</b>
+                        </p>
+
+                        {/* SELECT OFFERED SKILL */}
+                        <select
+                            className="w-full border p-2 rounded"
+                            value={offeredSkill?.skillName || ""}
+                            onChange={(e) => {
+
+                                const selected =
+                                    myProfile?.skillsOffered?.find(
+                                        s => s.skillName === e.target.value
+                                    );
+
+                                setOfferedSkill(selected);
+                            }}
+                        >
+
+                            {myProfile?.skillsOffered?.map((s, i) => (
+
+                                <option
+                                    key={i}
+                                    value={s.skillName}
                                 >
-                                    {myProfile?.skillsOffered.map(skill => (
-                                        <option key={skill} value={skill}>{skill}</option>
-                                    ))}
-                                </select>
-                            </div>
+                                    {s.skillName}
+                                </option>
 
-                            <button 
-                                onClick={confirmAndSendRequest}
-                                className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest hover:bg-indigo-700 shadow-xl shadow-indigo-200 transition-all mt-4"
-                            >
-                                Confirm & Send Request
-                            </button>
-                        </div>
+                            ))}
+
+                        </select>
+
+                        {/* SEND BUTTON */}
+                        <button
+                            onClick={sendRequest}
+                            className="w-full mt-4 bg-indigo-600 text-white py-2 rounded hover:bg-indigo-700"
+                        >
+                            Send
+                        </button>
+
+                        {/* CANCEL BUTTON */}
+                        <button
+                            onClick={() => setShowModal(false)}
+                            className="w-full mt-2 text-gray-500"
+                        >
+                            Cancel
+                        </button>
+
                     </div>
                 </div>
             )}
+
         </div>
     );
 };
