@@ -48,8 +48,7 @@ function App() {
         <Route path="/exchange-form" element={<ExchangeForm user={currentUser} />} />
         <Route path="/requests" element={<Requests />} />
         <Route path="/my-requests" element={<MyRequests />} />
-        <Route path="/suggestions" element={<Suggestions />} />
-        {/* ✅ Single Chat Route: Matches the requestId logic in ChatPage.jsx */}
+<Route path="/suggestions" element={<Suggestions user={currentUser} />} />[cite: 22]        {/* ✅ Single Chat Route: Matches the requestId logic in ChatPage.jsx */}
         <Route path="/chat/:requestId" element={<ChatPage />} />
         <Route path="/ai-path" element={<AIPathPage />} />
         

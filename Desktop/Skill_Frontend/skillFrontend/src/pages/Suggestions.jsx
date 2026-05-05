@@ -3,25 +3,26 @@ import axiosInstance from '../api/axiosInstance';
 import { Sparkles, ArrowRightLeft, User, Send, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-const Suggestions = () => {
+const Suggestions = ({ user }) => { // ✅ Added user prop for better ID detection
     const [matches, setMatches] = useState([]);
     const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
     
-    // Using the same ID logic as your Dashboard and Profile components
-    const userId = localStorage.getItem('userId') || localStorage.getItem('skillgrid_userId');
+    // ✅ FIX: Robust ID detection checking both props and multiple localStorage keys
+    const userId = user?.id || user?.userId || localStorage.getItem('userId') || localStorage.getItem('skillgrid_userId');
 
     useEffect(() => {
         const fetchMatches = async () => {
-            if (!userId || userId === "undefined") {
+            // console.log("Current User ID for matching:", userId); // Debug log
+
+            if (!userId || userId === "undefined" || userId === "null") {
                 setLoading(false);
                 return;
             }
 
             try {
                 setLoading(true);
-                // ✅ UPDATED: Calling the new Smart Matching backend endpoint
-                // This replaces the manual filtering logic we had before
+                // Hits the smart matching endpoint in SuggestionController.java[cite: 39]
                 const response = await axiosInstance.get(`/user/suggestions/${userId}`);
                 setMatches(response.data);
             } catch (err) {
@@ -62,7 +63,7 @@ const Suggestions = () => {
                         </div>
                         <h2 className="text-2xl font-black text-slate-800 mb-2">No perfect matches yet</h2>
                         <p className="text-slate-500 text-lg mb-8 max-w-md mx-auto">
-                            We couldn't find a 1:1 barter partner right now. Try adding more specific skills to your profile to increase your chances!
+                            We couldn't find a 1:1 barter partner right now. Make sure you have added <strong>"Skills I Want"</strong> in your profile!
                         </p>
                         <button 
                             onClick={() => navigate('/profile')} 
@@ -87,19 +88,19 @@ const Suggestions = () => {
                                     </div>
                                 </div>
 
-                                {/* Visual Intersection of Skills */}
+                                {/* Visual Intersection of Skills[cite: 19, 59] */}
                                 <div className="flex items-center gap-4 bg-slate-50 px-6 py-4 rounded-[1.5rem] border border-slate-100 flex-1 justify-center">
                                     <div className="text-center">
                                         <p className="text-[9px] font-black text-indigo-400 uppercase tracking-tighter mb-1">They Teach</p>
                                         <p className="font-black text-slate-700 text-sm">
-                                            {match.skillsOffered[0]}
+                                            {match.skillsOffered && match.skillsOffered.length > 0 ? match.skillsOffered[0].skillName : "Skill"}
                                         </p>
                                     </div>
                                     <ArrowRightLeft className="text-indigo-300 w-5 h-5 mx-2" />
                                     <div className="text-center">
                                         <p className="text-[9px] font-black text-emerald-400 uppercase tracking-tighter mb-1">You Teach</p>
                                         <p className="font-black text-slate-700 text-sm">
-                                            {match.skillsWanted[0]}
+                                            {match.skillsWanted && match.skillsWanted.length > 0 ? match.skillsWanted[0].skillName : "Skill"}
                                         </p>
                                     </div>
                                 </div>
@@ -108,7 +109,7 @@ const Suggestions = () => {
                                     onClick={() => navigate('/exchange-form', { 
                                         state: { 
                                             skill: { 
-                                                name: match.skillsOffered[0], 
+                                                name: match.skillsOffered[0].skillName, 
                                                 postedBy: match 
                                             } 
                                         } 

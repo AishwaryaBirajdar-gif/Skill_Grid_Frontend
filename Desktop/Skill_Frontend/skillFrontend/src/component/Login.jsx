@@ -63,36 +63,37 @@ const Login = ({ onLoginSuccess }) => {
 
             const data = response.data;
             
-            // 🔍 DEBUG: This helps you see exactly what the server sent
             console.log("--- LOGIN DEBUG START ---");
             console.log("Payload from Server:", data);
 
-            // ✅ DEFENSIVE ID DETECTION:
-            // Since MongoDB often uses _id and Spring uses id, we check both.
+            // Detection for various ID formats from backend
             const userId = data.id || data._id || data.userId;
 
             if (!userId) {
                 console.error("ID Mismatch Error: Server response keys:", Object.keys(data));
-                alert("Login Error: User ID not found in server response. Check Console.");
+                alert("Login Error: User ID not found in server response.");
                 return;
             }
 
-            // ✅ SESSION CLEANUP: 
-            // Wipe everything to prevent "undefined" or "null" strings from previous attempts
+            // ✅ SESSION CLEANUP
             localStorage.clear();
 
-            // ✅ STORAGE: 
-            // We set 'userId' (lowercase 'i') because your Profile.jsx looks for that key.
+            // ✅ STORAGE
             localStorage.setItem("token", data.token); 
             localStorage.setItem("userId", userId); 
             localStorage.setItem("skillgrid_userId", userId); 
-            localStorage.setItem("userName", data.name || "User");
-            localStorage.setItem("userRole", data.role);
-            localStorage.setItem("skillgrid_token", data.token);
-            localStorage.setItem("skillgrid_email", data.email || email);
+            
+            // ✅ FIX: Capture actual name (mapping data.name or data.fullname to 'userName')
+            // ✅ Corrected version (no citation tags or duplicate blocks)
+const displayName = data.name || data.fullname || "User";
+localStorage.setItem("userName", displayName); 
 
-            console.log("Success! Saved ID to storage:", userId);
-            console.log("--- LOGIN DEBUG END ---");
+localStorage.setItem("userRole", data.role);
+localStorage.setItem("skillgrid_token", data.token);
+localStorage.setItem("skillgrid_email", data.email || email);
+
+console.log("Success! Logged in as:", displayName);
+console.log("--- LOGIN DEBUG END ---");
 
             if (onLoginSuccess) {
                 onLoginSuccess(data);

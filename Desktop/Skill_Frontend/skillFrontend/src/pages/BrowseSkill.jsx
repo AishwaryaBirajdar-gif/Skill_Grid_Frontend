@@ -138,57 +138,49 @@ const BrowseSkills = () => {
         }
     };
 
-    // ---------------- SEND REQUEST ----------------
-    const sendRequest = async () => {
+    // ---------------- SEND REQUEST (UPDATED) ----------------
+   const sendRequest = async () => {
+    if (!selectedSkill || !offeredSkill) {
+        alert("Please select a skill to offer in exchange.");
+        return;
+    }
 
-        if (!selectedSkill) {
-            alert("No skill selected.");
-            return;
-        }
+    const receiverId = selectedSkill.userId;
 
-        if (!offeredSkill) {
-            alert("Please select a skill to offer.");
-            return;
-        }
+    const payload = {
+        senderId: currentUserId,
+        senderName: localStorage.getItem('userName') || "User", 
+        receiverId: receiverId,
+        receiverName: userCache[receiverId]?.name || "Skill Member", 
+        skillRequested: selectedSkill.skillName,
+        skillOffered: offeredSkill.skillName,
+        status: "PENDING",
 
-        // receiver = owner of clicked skill
-        const receiverId = selectedSkill.userId;
-
-        // prevent self request
-        if (receiverId === currentUserId) {
-            alert("You cannot send request to yourself.");
-            return;
-        }
-
-        const payload = {
-            senderId: currentUserId,
-            receiverId: receiverId,
-            skillRequested: selectedSkill.skillName,
-            skillOffered: offeredSkill.skillName,
-            status: "PENDING"
-        };
-
-        console.log("FINAL REQUEST PAYLOAD:", payload);
-
-        try {
-
-            await axiosInstance.post('/requests/send', payload);
-
-            alert("Request sent successfully!");
-
-            setShowModal(false);
-
-            // redirect to requests page
-            navigate('/requests');
-
-        } catch (err) {
-
-            console.error("Request send error:", err);
-
-            alert("Failed to send request.");
-        }
+        // Negotiation and progress fields
+        senderRequirements: [],
+        receiverRequirements: [],
+        senderProgress: 0,
+        receiverProgress: 0,
+        senderLocked: false,
+        receiverLocked: false,
+        senderRequirementsApproved: false,
+        receiverRequirementsApproved: false
     };
 
+    try {
+        // This will now find the @PostMapping("/send") on the backend
+        const response = await axiosInstance.post('/requests/send', payload); 
+        
+        if (response.status === 200 || response.status === 201) {
+            alert("Request sent successfully!");
+            setShowModal(false);
+            navigate('/my-requests');
+        }
+    } catch (err) {
+        console.error("Submission Error:", err.response?.data || err);
+        alert("Failed to send request. Check your network tab.");
+    }
+};
     // ---------------- UI ----------------
     return (
 
