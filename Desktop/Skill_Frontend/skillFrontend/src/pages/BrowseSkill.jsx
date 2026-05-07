@@ -87,24 +87,29 @@ const BrowseSkills = () => {
 
     // ---------------- SEND REQUEST ----------------
     const sendRequest = async () => {
+        // 1. Determine what the user is offering
         const myFirstSkill = myProfile?.skillsOffered?.[0]?.skillName;
         const expectedPrice = selectedSkill?.karmaPoints || 50; 
 
+        // 2. Karma Balance Guard (Stopper)
         if (useKarma && (myProfile?.karmaPoints < expectedPrice)) {
             toast.error(`You don't have enough Karma! Need ${expectedPrice} KP.`);
             return;
         }
 
         const receiverId = selectedSkill.userId;
+        
+        // 3. Construct Payload
         const payload = {
             senderId: currentUserId,
-            // ✅ FIX: Uses key set in Login.jsx
             senderName: localStorage.getItem('userName') || "User", 
             receiverId: receiverId,
-            // ✅ FIX: Pulls expert's name from userCache
             receiverName: userCache[receiverId]?.name || "Expert", 
             skillRequested: selectedSkill.skillName,
+            
+            // ✅ LOGIC FIX: Switch between Skill Name or KARMA_PAYMENT constant
             skillOffered: useKarma ? "KARMA_PAYMENT" : (myFirstSkill || "Skill Barter"),
+            
             totalKarmaPrice: expectedPrice,
             status: "PENDING",
             senderProgress: 0,
@@ -114,13 +119,16 @@ const BrowseSkills = () => {
         };
 
         try {
-            const response = await axiosInstance.post('/api/requests/send', payload);
+            // Note: Ensure your axiosInstance base URL matches your @RequestMapping
+            const response = await axiosInstance.post('/requests/send', payload);
+            
             if (response.status === 200 || response.status === 201) {
                 toast.success("Request sent successfully!");
                 setShowModal(false);
                 navigate('/my-requests');
             }
         } catch (err) {
+            console.error("Request failed:", err);
             toast.error("Failed to send request.");
         }
     };
@@ -148,8 +156,6 @@ const BrowseSkills = () => {
                 <div className="grid md:grid-cols-3 gap-6">
                     {filteredSkills.map(skill => {
                         const user = userCache[skill.userId];
-                        
-                        // ✅ SAFETY GUARD: Prevents blank page crash if user data is missing
                         if (!user) return null; 
 
                         return (
@@ -185,7 +191,7 @@ const BrowseSkills = () => {
                 </div>
             </div>
 
-            {/* MODAL (unchanged but included for completeness) */}
+            {/* MODAL */}
             {showModal && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 backdrop-blur-sm">
                     <div className="bg-white p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl">
@@ -193,6 +199,7 @@ const BrowseSkills = () => {
                         <p className="mb-6 text-slate-500">Learn: <span className="text-indigo-600 font-bold">{selectedSkill?.skillName}</span></p>
 
                         <div className="space-y-4">
+                            {/* Option 1: Skill Barter */}
                             <div 
                                 onClick={() => setUseKarma(false)}
                                 className={`p-5 rounded-2xl border-2 cursor-pointer transition-all ${!useKarma ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-100'}`}
@@ -201,11 +208,12 @@ const BrowseSkills = () => {
                                     <Award size={18} className={!useKarma ? 'text-indigo-600' : 'text-slate-400'} />
                                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Option 1: Skill Barter</span>
                                 </div>
-                                <div className="font-bold text-slate-700 text-sm">{myFirstSkillName || "No Skill Found"}</div>
+                                <div className="font-bold text-slate-700 text-sm">{myFirstSkillName || "No Skill to Offer"}</div>
                             </div>
 
                             <div className="text-center text-slate-300 font-black text-[10px] tracking-[0.3em] py-1">OR</div>
 
+                            {/* Option 2: Pay Karma */}
                             <div 
                                 onClick={() => setUseKarma(true)}
                                 className={`p-5 rounded-2xl border-2 cursor-pointer transition-all ${useKarma ? 'border-amber-500 bg-amber-50/50' : 'border-slate-100'}`}

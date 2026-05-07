@@ -392,7 +392,7 @@ const addSkill = async (type) => {
 
                     {/* OFFERED */}
                     <SkillSection
-                        title="Skills I Can Teach"
+                        title="Skills I Can Offer"
                         skills={formData.skillsOffered}
                         inputValue={offeredInput}
                         setInputValue={setOfferedInput}
@@ -406,7 +406,7 @@ const addSkill = async (type) => {
 
                     {/* WANTED */}
                     <SkillSection
-                        title="Skills I Want to Learn"
+                        title="Skills I Want"
                         skills={formData.skillsWanted}
                         inputValue={wantedInput}
                         setInputValue={setWantedInput}
@@ -561,7 +561,7 @@ const SkillSection = ({
                         />
 
                         {/* KARMA POINTS ONLY FOR OFFERED SKILLS */}
-                        {title === "Skills I Can Teach" && (
+                        {title === "Skills I Can Offer" && (
                             <input
                                 type="number"
                                 min="0"
@@ -609,7 +609,7 @@ const SkillSection = ({
                             </span>
                             
 
-                            {title === "Skills I Can Teach" && skill.depthLevel && (
+                            {title === "Skills I Can Offer" && skill.depthLevel && (
                                 <span
                                     className={`text-xs font-bold px-2 py-1 rounded-full mt-1 w-fit
                                     ${skill.depthLevel === 'Beginner'
@@ -624,7 +624,7 @@ const SkillSection = ({
                                     {skill.depthLevel}
                                 </span>
                             )}
-                           {title === "Skills I Can Teach" && skill.karmaPoints && (
+                           {title === "Skills I Can Offer" && skill.karmaPoints && (
                                 <div className="absolute top-2 right-2 bg-gradient-to-br from-yellow-300 to-yellow-500 text-white text-xs font-bold w-7 h-7 flex items-center justify-center rounded-full shadow-md border border-yellow-600">
                                     {skill.karmaPoints}
                                 </div>
