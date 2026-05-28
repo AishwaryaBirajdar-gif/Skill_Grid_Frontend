@@ -147,8 +147,12 @@ function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
           <BigBox title="Smart Matches" desc="Find partners who want what you teach." icon={<ArrowRightLeft size={40} className="text-amber-500" />} badge={matchesCount > 0 ? `${matchesCount} Matches` : null} onClick={() => navigate("/suggestions")} />
           <BigBox title="Incoming Requests" desc={`You have ${incomingPendingCount} requests waiting.`} icon={<Bell size={40} className="text-rose-500" />} badge={incomingPendingCount > 0 ? `${incomingPendingCount} New` : null} onClick={() => navigate("/my-requests")} />
-          <BigBox title="Active Rooms" desc="Ongoing exchanges. Jump back into your chats." icon={<MessageSquare size={40} className="text-emerald-500" />} onClick={() => navigate("/my-requests")} />
-          <BigBox title="Trending Skills" desc="Explore popular skills on SkillGrid." icon={<TrendingUp size={40} className="text-violet-500" />} onClick={() => navigate("/browse-skill")} />
+<BigBox 
+  title="Active Rooms" 
+  desc="Ongoing exchanges. Jump back into your chats." 
+  icon={<MessageSquare size={40} className="text-emerald-500" />} 
+  onClick={() => navigate("/learning-rooms")} 
+/>          <BigBox title="Trending Skills" desc="Explore popular skills on SkillGrid." icon={<TrendingUp size={40} className="text-violet-500" />} onClick={() => navigate("/browse-skill")} />
         </div>
       </div>
     </div>

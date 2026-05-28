@@ -24,7 +24,11 @@ const ChatPage = () => {
   const chatBoxRef = useRef(null);
   const stompClientRef = useRef(null);
 
-  // ✅ Retrieve Local User ID for strict message alignment
+  // ✅ FEEDBACK STATES
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState("");
+
   const currentUserId = localStorage.getItem("userId") || localStorage.getItem("skillgrid_userId");
 
   const fetchRoom = async () => {
@@ -59,7 +63,7 @@ const ChatPage = () => {
           );
           return exists ? prev : [...prev, newMessage];
         });
-        fetchRoom(); // Keeps roadmap progress synced across users
+        fetchRoom(); 
       });
     });
 
@@ -68,12 +72,21 @@ const ChatPage = () => {
     };
   }, [requestId]);
 
+  // ✅ FEEDBACK TRIGGER LOGIC
+  useEffect(() => {
+    if ((requestData?.status === "COMPLETED" || (requestData?.senderProgress === 100 && requestData?.receiverProgress === 100)) && 
+        !requestData?.feedbackStatus?.[currentUserId] && 
+        requestData?.status !== "CLOSED") {
+        setShowFeedback(true);
+    }
+  }, [requestData, currentUserId]);
+
   const sendMessage = () => {
     if (!input.trim() || !stompClientRef.current) return;
     
     const chatMessage = { 
         sender: currentUser, 
-        senderId: currentUserId, // ✅ CRITICAL: Sending ID for alignment
+        senderId: currentUserId, 
         content: input, 
         roomId: requestId,
         timestamp: new Date().toISOString() 
@@ -108,6 +121,46 @@ const ChatPage = () => {
     } catch (e) { toast.error("Submission failed."); }
   };
 
+  // ✅ SUBMIT FEEDBACK + TASK-TO-JOB CONVERSION
+  const submitFeedback = async () => {
+    try {
+        const feedbackPayload = {
+            requestId,
+            fromUserId: currentUserId,
+            toUserId: isSender ? requestData.receiverId : requestData.senderId,
+            rating,
+            comment,
+            barterType: isKarmaBarter ? "KARMA" : "SKILL"
+        };
+        
+        // 1. Submit review
+        toast.loading("Saving feedback...");
+        await axiosInstance.post(`/feedback/${requestId}/submit`, feedbackPayload);
+        
+        // 2. ⏳ ADD A SMALL DELAY (500ms)
+        // This ensures the DB has finished writing the feedback before we ask for it
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // 3. Generate Badge
+        const badgeRes = await axiosInstance.post(`/credentials/generate/${requestId}?userId=${currentUserId}`);
+        
+        toast.dismiss(); // Remove loading toast
+        toast.success("Professional Badge Earned!");
+        setShowFeedback(false);
+
+        // 4. Redirect
+        navigate("/learning-rooms", { state: { autoOpenBadge: badgeRes.data } });
+
+    } catch (e) { 
+        toast.dismiss();
+        console.error("Conversion Error:", e.response?.data);
+        toast.error(e.response?.data || "Process failed. Try clicking the Trophy in Workspaces.");
+        
+        // Even if badge fails, go to rooms so they can try the manual Trophy click
+        navigate("/learning-rooms");
+    }
+};
+
   const handleSendBack = async (track) => {
     try {
       const res = await axiosInstance.put(`/requests/${requestId}/send-back?trackType=${track}`);
@@ -130,7 +183,8 @@ const ChatPage = () => {
 
   const handleVerify = async () => {
     try {
-        await axiosInstance.put(`/requests/${requestId}/verify-work?verifierId=${currentUserId}`);
+        const res = await axiosInstance.put(`/requests/${requestId}/verify-work?verifierId=${currentUserId}`);
+        setRequestData(res.data);
         toast.success("Work verified!");
         fetchRoom();
     } catch (e) { toast.error("Verification failed."); }
@@ -139,7 +193,7 @@ const ChatPage = () => {
   const isSender = currentUserId === requestData?.senderId; 
   const isReceiver = currentUserId === requestData?.receiverId; 
   const isKarmaBarter = requestData?.skillOffered === "KARMA_PAYMENT";
-  const isCompleted = requestData?.senderProgress === 100 && requestData?.receiverProgress === 100;
+  const isCompleted = requestData?.status === "COMPLETED" || (requestData?.senderProgress === 100 && requestData?.receiverProgress === 100);
 
   useEffect(() => {
     if (chatBoxRef.current) chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight;
@@ -147,31 +201,20 @@ const ChatPage = () => {
 
   return (
     <div className="flex h-screen bg-slate-950 text-white overflow-hidden font-sans">
-      {/* LEFT: CHAT AREA */}
       <div className="flex-1 flex flex-col border-r border-gray-800">
         <header className="p-4 border-b border-gray-800 flex justify-between items-center bg-black/20">
           <h1 className="font-bold text-purple-400 uppercase tracking-tighter">SkillGrid Room</h1>
-          <button onClick={() => navigate("/my-requests")} className="text-[10px] font-black uppercase text-gray-500 hover:text-red-500">Leave Room</button>
+          <button onClick={() => navigate("/learning-rooms")} className="text-[10px] font-black uppercase text-gray-500 hover:text-emerald-500">Back to Workspaces</button>
         </header>
         
         <main ref={chatBoxRef} className="flex-1 overflow-y-auto p-6 space-y-6">
           {messages.map((m, i) => {
-            // ✅ FINAL ALIGNMENT CHECK: Compare IDs as strings
             const isMe = String(m.senderId) === String(currentUserId);
-            
             return (
               <div key={i} className={`flex ${isMe ? "justify-end" : "justify-start"} w-full animate-in fade-in slide-in-from-bottom-2`}>
                 <div className={`flex flex-col ${isMe ? "items-end" : "items-start"} max-w-[75%]`}>
-                  <p className="text-[9px] font-black mb-1 opacity-40 uppercase px-1 tracking-widest">
-                    {isMe ? "You" : m.sender}
-                  </p>
-                  <div className={`p-3 rounded-2xl text-sm shadow-md ${
-                    isMe 
-                      ? "bg-purple-600 text-white rounded-tr-none border border-purple-500/50" 
-                      : "bg-gray-800 text-gray-200 rounded-tl-none border border-gray-700/50"
-                  }`}>
-                    {m.content}
-                  </div>
+                  <p className="text-[9px] font-black mb-1 opacity-40 uppercase px-1 tracking-widest">{isMe ? "You" : m.sender}</p>
+                  <div className={`p-3 rounded-2xl text-sm shadow-md ${isMe ? "bg-purple-600 text-white rounded-tr-none border border-purple-500/50" : "bg-gray-800 text-gray-200 rounded-tl-none border border-gray-700/50"}`}>{m.content}</div>
                 </div>
               </div>
             );
@@ -184,32 +227,38 @@ const ChatPage = () => {
         </footer>
       </div>
 
-      {/* RIGHT: SIDEBAR (Roadmaps) */}
       <aside className="w-96 p-6 bg-gray-900/20 overflow-y-auto border-l border-gray-800">
-        <h2 className="flex gap-2 font-bold mb-6 items-center uppercase tracking-tighter">
-            <ClipboardList className="text-purple-400" size={18}/> Roadmap & Progress
-        </h2>
+        <h2 className="flex gap-2 font-bold mb-6 items-center uppercase tracking-tighter"><ClipboardList className="text-purple-400" size={18}/> Roadmap & Progress</h2>
         
         {!requestData ? <div className="flex justify-center py-10"><Loader2 className="animate-spin text-purple-500" /></div> : (
           <div className="space-y-6">
-            
-            {/* 🏆 COMPLETION VIEW */}
-            {isCompleted ? (
+            {(isCompleted || requestData.status === "CLOSED") ? (
               <div className="flex flex-col items-center justify-center py-10 bg-emerald-500/10 border border-emerald-500/30 rounded-3xl animate-in zoom-in text-center px-4">
                   <PartyPopper size={50} className="text-emerald-400 mb-4 animate-bounce" />
-                  <h3 className="text-lg font-black uppercase text-emerald-400">Exchange Complete!</h3>
-                  <button onClick={() => navigate("/")} className="mt-6 w-full bg-white text-black py-2 rounded-xl text-[10px] font-black uppercase tracking-widest">Return Home</button>
+                  <h3 className="text-lg font-black uppercase text-emerald-400">{requestData.status === "CLOSED" ? "Barter Closed" : "Exchange Success!"}</h3>
+                  <button 
+                    onClick={async () => {
+                        try {
+                            const res = await axiosInstance.post(`/credentials/generate/${requestId}?userId=${currentUserId}`);
+                            navigate("/learning-rooms", { state: { autoOpenBadge: res.data } });
+                        } catch (e) {
+                            navigate("/learning-rooms");
+                        }
+                    }} 
+                    className="mt-6 w-full bg-white text-black py-2 rounded-xl text-[10px] font-black uppercase tracking-widest"
+                  >
+                    View Credentials
+                  </button>
               </div>
             ) : requestData.status === "ACTIVE" ? (
               <div className="space-y-8 animate-in fade-in duration-500">
-                  {/* Track 1: Receiver Progress */}
                   <div className="p-4 bg-gray-900 border border-emerald-500/30 rounded-2xl shadow-xl">
-                    <div className="flex justify-between items-center mb-4 text-[10px] font-black uppercase">
-                        <span className="text-emerald-400">{requestData.receiverProgress}%</span>
-                        <p>{requestData.receiverName}'s Roadmap</p>
+                    <div className="flex justify-between items-center mb-4 text-[10px] font-black uppercase text-emerald-400">
+                        <span>{requestData.receiverProgress}%</span>
+                        <p>{requestData.receiverName}</p>
                     </div>
                     <div className="h-2 bg-gray-800 mb-6 rounded-full overflow-hidden">
-                        <div className="h-full bg-emerald-500 transition-all duration-700 shadow-[0_0_10px_#10b981]" style={{width: `${requestData.receiverProgress}%`}}></div>
+                        <div className="h-full bg-emerald-500 transition-all duration-700" style={{width: `${requestData.receiverProgress}%`}}></div>
                     </div>
                     <div className="space-y-3">
                         {requestData.receiverRequirements?.map((req, index) => {
@@ -217,7 +266,7 @@ const ChatPage = () => {
                             const isDone = requestData.receiverProgress >= ((index + 1) / total) * 100;
                             const isCurrent = !isDone && (requestData.receiverProgress >= (index / total) * 100);
                             return (
-                                <div key={index} className={`p-3 rounded-xl border transition-all ${isDone ? 'border-emerald-500/30 bg-emerald-500/5 opacity-60' : isCurrent ? 'border-purple-500 bg-purple-500/10 shadow-[0_0_10px_rgba(168,85,247,0.2)]' : 'border-gray-800 bg-gray-800/20'}`}>
+                                <div key={index} className={`p-3 rounded-xl border transition-all ${isDone ? 'border-emerald-500/30 bg-emerald-500/5 opacity-60' : isCurrent ? 'border-purple-500 bg-purple-500/10 shadow-lg' : 'border-gray-800 bg-gray-800/20'}`}>
                                     <div className="flex justify-between items-center">
                                         <p className="text-xs font-bold">{req}</p>
                                         {isCurrent && (
@@ -231,15 +280,14 @@ const ChatPage = () => {
                     </div>
                   </div>
 
-                  {/* Track 2: Sender Progress */}
                   {!isKarmaBarter && (
                     <div className="p-4 bg-gray-900 border border-purple-500/30 rounded-2xl shadow-xl">
-                      <div className="flex justify-between items-center mb-4 text-[10px] font-black uppercase">
-                          <span className="text-purple-400">{requestData.senderProgress}%</span>
-                          <p>{requestData.senderName}'s Roadmap</p>
+                      <div className="flex justify-between items-center mb-4 text-[10px] font-black uppercase text-purple-400">
+                          <span>{requestData.senderProgress}%</span>
+                          <p>{requestData.senderName}</p>
                       </div>
                       <div className="h-2 bg-gray-800 mb-6 rounded-full overflow-hidden">
-                          <div className="h-full bg-purple-500 transition-all duration-700 shadow-[0_0_10px_#a855f7]" style={{width: `${requestData.senderProgress}%`}}></div>
+                          <div className="h-full bg-purple-500 transition-all duration-700" style={{width: `${requestData.senderProgress}%`}}></div>
                       </div>
                       <div className="space-y-3">
                           {requestData.milestones?.map((m, index) => {
@@ -247,7 +295,7 @@ const ChatPage = () => {
                               const isDone = requestData.senderProgress >= ((index + 1) / total) * 100;
                               const isCurrent = !isDone && (requestData.senderProgress >= (index / total) * 100);
                               return (
-                                  <div key={index} className={`p-3 rounded-xl border transition-all ${isDone ? 'border-purple-500/30 bg-purple-500/5 opacity-60' : isCurrent ? 'border-emerald-500 bg-emerald-500/10 shadow-[0_0_10px_rgba(16,185,129,0.2)]' : 'border-gray-800 bg-gray-800/20'}`}>
+                                  <div key={index} className={`p-3 rounded-xl border transition-all ${isDone ? 'border-purple-500/30 bg-purple-500/5 opacity-60' : isCurrent ? 'border-emerald-500 bg-emerald-500/10 shadow-lg' : 'border-gray-800 bg-gray-800/20'}`}>
                                       <div className="flex justify-between items-center">
                                           <p className="text-xs font-bold">{m.title}</p>
                                           {isCurrent && (
@@ -264,13 +312,18 @@ const ChatPage = () => {
               </div>
             ) : requestData.status === "ACCEPTED" ? (
               <div className="space-y-6">
-                {/* TEACHER SENDER TRACK */}
                 {!isKarmaBarter && (
                     <div className="p-4 rounded-xl border border-purple-500/20 bg-purple-900/5">
                         <p className="text-[10px] font-black text-purple-400 mb-1 uppercase tracking-widest">Teacher: {requestData.senderName}</p>
                         {isReceiver && (!requestData.milestones?.length || requestData.senderReqNeedsUpdate) && (
                             <div className="space-y-2">
-                                <input value={newReq} onChange={e=>setNewReq(e.target.value)} placeholder="Propose goal..." className="w-full bg-gray-900 p-2 text-xs rounded border border-gray-700 outline-none"/>
+                                {localReqs.map((lr, i) => (
+                                    <div key={i} className="flex justify-between items-center bg-purple-600/20 p-2 rounded border border-purple-500/30">
+                                        <span className="text-[10px] font-bold">{lr}</span>
+                                        <X size={12} className="cursor-pointer text-rose-400" onClick={() => removeLocalRequirement(i)}/>
+                                    </div>
+                                ))}
+                                <input value={newReq} onChange={e=>setNewReq(e.target.value)} placeholder="Propose goal..." className="w-full bg-gray-900 p-2 text-xs rounded border border-gray-700 outline-none focus:border-purple-500"/>
                                 <button onClick={addLocalRequirement} className="w-full bg-purple-600 text-[10px] py-1 rounded font-bold uppercase tracking-widest">Add Goal</button>
                                 <button onClick={()=>handleFinalSubmit('sender')} className="w-full bg-white text-black text-[10px] py-1 rounded font-black uppercase tracking-widest">Submit Plan</button>
                             </div>
@@ -292,14 +345,18 @@ const ChatPage = () => {
                         )}
                     </div>
                 )}
-
-                {/* TEACHER RECEIVER TRACK */}
                 <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-900/5">
                     <p className="text-[10px] font-black text-emerald-400 mb-1 uppercase tracking-widest text-right">Teacher: {requestData.receiverName}</p>
                     {isSender && (!requestData.receiverRequirements?.length || requestData.receiverReqNeedsUpdate) && (
                         <div className="space-y-2">
-                            <input value={newReq} onChange={e=>setNewReq(e.target.value)} placeholder="Propose goal..." className="w-full bg-gray-900 p-2 text-xs rounded border border-gray-700 outline-none"/>
-                            <button onClick={addLocalRequirement} className="w-full bg-emerald-600 text-[10px] py-1 rounded font-bold uppercase tracking-widest text-right">Add Goal</button>
+                            {localReqs.map((lr, i) => (
+                                <div key={i} className="flex justify-between items-center bg-emerald-600/20 p-2 rounded border border-emerald-500/30">
+                                    <X size={12} className="cursor-pointer text-rose-400" onClick={() => removeLocalRequirement(i)}/>
+                                    <span className="text-[10px] font-bold">{lr}</span>
+                                </div>
+                            ))}
+                            <input value={newReq} onChange={e=>setNewReq(e.target.value)} placeholder="Propose goal..." className="w-full bg-gray-900 p-2 text-xs rounded border border-gray-700 outline-none text-right focus:border-emerald-500"/>
+                            <button onClick={addLocalRequirement} className="w-full bg-emerald-600 text-[10px] py-1 rounded font-bold uppercase tracking-widest">Add Goal</button>
                             <button onClick={()=>handleFinalSubmit('receiver')} className="w-full bg-white text-black text-[10px] py-1 rounded font-black uppercase tracking-widest">Submit Plan</button>
                         </div>
                     )}
@@ -314,8 +371,8 @@ const ChatPage = () => {
                     )}
                     {isReceiver && requestData.receiverRequirements?.length > 0 && !requestData.receiverRequirementsApproved && (
                         <div className="flex gap-1 mt-4">
-                            <button onClick={()=>handleApprove('receiver')} className="flex-1 bg-green-600 text-[9px] py-2 rounded font-black uppercase shadow-lg">Approve</button>
-                            <button onClick={()=>handleSendBack('receiver')} className="flex-1 bg-rose-600 text-[9px] py-2 rounded font-black uppercase shadow-lg">Send Back</button>
+                            <button onClick={()=>handleApprove('receiver')} className="flex-1 bg-green-600 text-[9px] py-2 rounded font-black uppercase shadow-lg text-left">Approve</button>
+                            <button onClick={()=>handleSendBack('receiver')} className="flex-1 bg-rose-600 text-[9px] py-2 rounded font-black uppercase shadow-lg text-right">Send Back</button>
                         </div>
                     )}
                 </div>
@@ -326,6 +383,38 @@ const ChatPage = () => {
           </div>
         )}
       </aside>
+
+      {/* ✅ FEEDBACK MODAL */}
+      {showFeedback && (
+        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center z-[100] p-4">
+          <div className="bg-gray-900 border border-purple-500/30 p-8 rounded-3xl max-w-md w-full shadow-2xl animate-in zoom-in duration-300">
+            <div className="text-center mb-6">
+              <h2 className="text-xl font-black uppercase tracking-tighter text-white">Rate the Exchange</h2>
+              <p className="text-gray-400 text-[10px] uppercase tracking-widest mt-1">Experience with {isSender ? requestData.receiverName : requestData.senderName}</p>
+            </div>
+            
+            <div className="flex gap-2 mb-8 justify-center">
+              {[1, 2, 3, 4, 5].map((s) => (
+                <Star key={s} size={32} onClick={() => setRating(s)} className={`cursor-pointer transition-all ${s <= rating ? "fill-yellow-400 text-yellow-400" : "text-gray-700 hover:text-gray-400"}`} />
+              ))}
+            </div>
+
+            <textarea 
+              value={comment} 
+              onChange={e => setComment(e.target.value)} 
+              className="w-full bg-gray-800 border border-gray-700 rounded-2xl p-4 text-xs text-white outline-none focus:border-purple-500 mb-6 h-28 resize-none" 
+              placeholder="Write a brief review..." 
+            />
+
+            <button 
+                onClick={submitFeedback} 
+                className="w-full bg-purple-600 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-purple-500 transition-all shadow-lg"
+            >
+                Submit Feedback & Get Badge
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -7,7 +7,7 @@ import Login from "./component/login.jsx";
 import Signup from "./component/Signup.jsx";
 import Dashboard from "./component/Dashboard.jsx";
 import Browse from "./component/Browse.jsx";
-
+import LearningRooms from "./pages/LearningRooms"; // ✅ ADD THIS IMPORT
 // Pages 
 import Profile from "./pages/Profile.jsx";
 import BrowseSkill from "./pages/BrowseSkill.jsx";
@@ -51,7 +51,9 @@ function App() {
 <Route path="/suggestions" element={<Suggestions user={currentUser} />} />[cite: 22]        {/* ✅ Single Chat Route: Matches the requestId logic in ChatPage.jsx */}
         <Route path="/chat/:requestId" element={<ChatPage />} />
         <Route path="/ai-path" element={<AIPathPage />} />
-        
+
+{/* ✅ Updated Learning Rooms Route */}
+        <Route path="/learning-rooms" element={<LearningRooms />} />        
         {/* ✅ SAFETY CATCH-ALL */}
         <Route 
           path="*" 
