@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import axiosInstance from "../api/axiosInstance"; 
 import { 
   Gift, BookOpen, Clock, Users, Zap, Layers, 
-  MessageSquare, TrendingUp, Sparkles, Bell, ArrowRightLeft, Coins
+  MessageSquare, TrendingUp, Sparkles, Bell, ArrowRightLeft, Coins, Landmark
 } from "lucide-react";
 
 function Dashboard() {
@@ -111,6 +111,7 @@ function Dashboard() {
             <button onClick={() => navigate("/")} className="hover:text-indigo-600 transition-colors">Home</button>
             <button onClick={() => navigate("/browse-skill")} className="hover:text-indigo-600 transition-colors">Browse Skills</button>
             <button onClick={() => navigate("/my-requests")} className="hover:text-indigo-600 transition-colors">My Requests</button>
+            <button onClick={() => navigate("/community-barter")} className="hover:text-indigo-600 transition-colors">Community Barter</button>
             <button className="text-indigo-600 bg-indigo-50 px-5 py-2.5 rounded-2xl font-black">Dashboard</button>
           </div>
           <div className="flex justify-end items-center gap-4 w-1/4">
@@ -147,12 +148,9 @@ function Dashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
           <BigBox title="Smart Matches" desc="Find partners who want what you teach." icon={<ArrowRightLeft size={40} className="text-amber-500" />} badge={matchesCount > 0 ? `${matchesCount} Matches` : null} onClick={() => navigate("/suggestions")} />
           <BigBox title="Incoming Requests" desc={`You have ${incomingPendingCount} requests waiting.`} icon={<Bell size={40} className="text-rose-500" />} badge={incomingPendingCount > 0 ? `${incomingPendingCount} New` : null} onClick={() => navigate("/my-requests")} />
-<BigBox 
-  title="Active Rooms" 
-  desc="Ongoing exchanges. Jump back into your chats." 
-  icon={<MessageSquare size={40} className="text-emerald-500" />} 
-  onClick={() => navigate("/learning-rooms")} 
-/>          <BigBox title="Trending Skills" desc="Explore popular skills on SkillGrid." icon={<TrendingUp size={40} className="text-violet-500" />} onClick={() => navigate("/browse-skill")} />
+          <BigBox title="Active Rooms" desc="Ongoing exchanges. Jump back into your chats." icon={<MessageSquare size={40} className="text-emerald-500" />} onClick={() => navigate("/learning-rooms")} />          
+          <BigBox title="Community Barter" desc="Trade multi-directionally in shared community pools." icon={<Landmark size={40} className="text-indigo-500" />} onClick={() => navigate("/community-barter")} />
+          <BigBox title="Trending Skills" desc="Explore popular skills on SkillGrid." icon={<TrendingUp size={40} className="text-violet-500" />} onClick={() => navigate("/browse-skill")} />
         </div>
       </div>
     </div>
