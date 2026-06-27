@@ -1,4 +1,4 @@
-import React, { useState } from 'react'; // ✅ Ensure both React and { useState } are here
+import React, { useState } from 'react';
 import { Mail, Lock, ArrowLeft, Grid } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from "../api/axiosInstance";
@@ -56,13 +56,14 @@ const Login = ({ onLoginSuccess }) => {
         e.preventDefault();
         
         try {
-            const response = await axios.post("/auth/login", {
+            // UPDATED: Added /api prefix to match your @RequestMapping("/api/auth")
+            const response = await axios.post("/api/auth/login", {
                 email,
                 password,
             });
 
             const data = response.data;
-            const userId = data.id || data._id || data.userId;
+            const userId = data.userId; 
 
             if (!userId) {
                 alert("Login Error: User ID not found in server response.");
@@ -72,25 +73,26 @@ const Login = ({ onLoginSuccess }) => {
             localStorage.clear();
             localStorage.setItem("token", data.token); 
             localStorage.setItem("userId", userId); 
-            localStorage.setItem("skillgrid_userId", userId); 
-            
-            // ✅ Fix: Capture actual name
-            const displayName = data.name || data.fullname || "User";
-            localStorage.setItem("userName", displayName); 
-
+            localStorage.setItem("userName", data.fullname); 
             localStorage.setItem("userRole", data.role);
+            
+            localStorage.setItem("skillgrid_userId", userId);
             localStorage.setItem("skillgrid_token", data.token);
-            localStorage.setItem("skillgrid_email", data.email || email);
+            localStorage.setItem("skillgrid_email", data.email);
 
             if (onLoginSuccess) {
                 onLoginSuccess(data);
             }
 
-            navigate("/dashboard");
+            if (data.role === "ADMIN") {
+                navigate("/admin");
+            } else {
+                navigate("/dashboard");
+            }
 
         } catch (error) {
             console.error("Login Error:", error);
-            const errorMsg = error.response?.data?.message || "Login failed";
+            const errorMsg = error.response?.data?.message || "Login failed. Please check your credentials.";
             alert(errorMsg);
         }
     };

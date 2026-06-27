@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 
 // Components
 import HomePage from "./component/HomePage.jsx";
@@ -7,7 +7,7 @@ import Login from "./component/login.jsx";
 import Signup from "./component/Signup.jsx";
 import Dashboard from "./component/Dashboard.jsx";
 import Browse from "./component/Browse.jsx";
-import LearningRooms from "./pages/LearningRooms"; // ✅ ADD THIS IMPORT
+import LearningRooms from "./pages/LearningRooms"; 
 // Pages 
 import Profile from "./pages/Profile.jsx";
 import BrowseSkill from "./pages/BrowseSkill.jsx";
@@ -15,18 +15,38 @@ import ExchangeForm from "./pages/ExchangeForm.jsx";
 import SkillForm from "./pages/SkillForm.jsx";
 import Requests from './pages/Requests';
 import MyRequests from './pages/MyRequests';
-import ChatPage from './component/ChatPage'; // Using this for the main chat logic
+import ChatPage from './component/ChatPage'; 
 import Suggestions from "./pages/Suggestions.jsx";
 import AIPathPage from "./pages/AIPathPage";
+import AdminDashboard from "./pages/AdminDashboard.jsx";
+import ManageUsers from "./pages/ManageUsers";
+import PlatformMessages from "./pages/PlatformMessages";
+import ViewReports from "./pages/ViewReports";
+import PendingSkills from "./pages/PendingSkills";
+import RecentSwaps from "./pages/RecentSwaps.jsx";
+
+
+// ✅ Admin Protection Wrapper
+const AdminRoute = ({ children }) => {
+  const role = localStorage.getItem('userRole');
+  return role === 'ADMIN' ? children : <Navigate to="/dashboard" />;
+};
 
 function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [currentUser, setCurrentUser] = useState({ name: "Guest" });
+  // Initialize state from localStorage to persist on refresh
+  const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem('token'));
+  const [currentUser, setCurrentUser] = useState({ 
+    name: localStorage.getItem('userName') || "Guest",
+    role: localStorage.getItem('userRole')
+  });
 
   const handleLoginSuccess = (userData) => {
     setIsLoggedIn(true);
     setCurrentUser(userData);
-    console.log("Login/Signup successful for user:", userData.name || userData.email);
+    // Explicitly set in localStorage here for safety
+    localStorage.setItem('userRole', userData.role);
+    localStorage.setItem('userName', userData.name);
+    console.log("Login/Signup successful for user:", userData.name);
   };
 
   return (
@@ -36,7 +56,9 @@ function App() {
         <Route path="/" element={<HomePage isLoggedIn={isLoggedIn} />} />
         <Route path="/login" element={<Login onLoginSuccess={handleLoginSuccess} />} />
         <Route path="/signup" element={<Signup onSignupSuccess={handleLoginSuccess} />} />
-        <Route path="/dashboard" element={<Dashboard user={currentUser} />} />
+        
+        {/* Protect Dashboard so only logged-in users see it */}
+        <Route path="/dashboard" element={isLoggedIn ? <Dashboard user={currentUser} /> : <Navigate to="/login" />} />
         
         {/* Profile & Skills */}
         <Route path="/profile" element={<Profile user={currentUser} />} />
@@ -48,13 +70,34 @@ function App() {
         <Route path="/exchange-form" element={<ExchangeForm user={currentUser} />} />
         <Route path="/requests" element={<Requests />} />
         <Route path="/my-requests" element={<MyRequests />} />
-<Route path="/suggestions" element={<Suggestions user={currentUser} />} />[cite: 22]        {/* ✅ Single Chat Route: Matches the requestId logic in ChatPage.jsx */}
+        <Route path="/suggestions" element={<Suggestions user={currentUser} />} />
+        
         <Route path="/chat/:requestId" element={<ChatPage />} />
         <Route path="/ai-path" element={<AIPathPage />} />
 
-{/* ✅ Updated Learning Rooms Route */}
+        <Route path="/admin/pending-skills" element={<PendingSkills />} />
+        <Route path="/admin/swaps" element={<RecentSwaps />} />
+        
+        {/* ✅ SECURED ADMIN ROUTE */}
+        <Route path="/admin" element={
+          <AdminRoute>
+            <AdminDashboard />
+          </AdminRoute>
+        } />
+    <Route path="/admin/users" element={<AdminRoute><ManageUsers /></AdminRoute>} />
+    <Route path="/admin/messages" element={<AdminRoute><PlatformMessages /></AdminRoute>} />
+    <Route path="/admin/reports" element={<AdminRoute><ViewReports /></AdminRoute>} />
+
+        {/* Learning Rooms */}
         <Route path="/learning-rooms" element={<LearningRooms />} />        
-        {/* ✅ SAFETY CATCH-ALL */}
+        
+        <Route path="/admin/users" element={
+    <AdminRoute>
+        <ManageUsers />
+    </AdminRoute>
+} />
+
+        {/* SAFETY CATCH-ALL */}
         <Route 
           path="*" 
           element={
