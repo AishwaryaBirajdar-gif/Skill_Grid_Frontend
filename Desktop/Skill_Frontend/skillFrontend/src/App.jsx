@@ -18,6 +18,8 @@ import MyRequests from './pages/MyRequests';
 import ChatPage from './component/ChatPage'; // Using this for the main chat logic
 import Suggestions from "./pages/Suggestions.jsx";
 import AIPathPage from "./pages/AIPathPage";
+import CommunityBarter from './pages/CommunityBarter';
+import CommunityRoom from './pages/CommunityRoom';
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -51,7 +53,8 @@ function App() {
 <Route path="/suggestions" element={<Suggestions user={currentUser} />} />[cite: 22]        {/* ✅ Single Chat Route: Matches the requestId logic in ChatPage.jsx */}
         <Route path="/chat/:requestId" element={<ChatPage />} />
         <Route path="/ai-path" element={<AIPathPage />} />
-
+        <Route path="/community-barter" element={<CommunityBarter />} />
+<Route path="/community-room/:barterId" element={<CommunityRoom />} />
 {/* ✅ Updated Learning Rooms Route */}
         <Route path="/learning-rooms" element={<LearningRooms />} />        
         {/* ✅ SAFETY CATCH-ALL */}
