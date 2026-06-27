@@ -28,12 +28,12 @@ import ViewReports from "./pages/ViewReports";
 import PendingSkills from "./pages/PendingSkills";
 import RecentSwaps from "./pages/RecentSwaps.jsx";
 
-// Community Barter Pages
+// Community Pages
 import CommunityBarter from "./pages/CommunityBarter";
 import CommunityRoom from "./pages/CommunityRoom";
 
 
-// Admin Protection Wrapper
+// Admin Protection
 const AdminRoute = ({ children }) => {
   const role = localStorage.getItem("userRole");
   return role === "ADMIN" ? children : <Navigate to="/dashboard" />;
@@ -59,10 +59,7 @@ function App() {
     localStorage.setItem("userRole", userData.role);
     localStorage.setItem("userName", userData.name);
 
-    console.log(
-      "Login/Signup successful for user:",
-      userData.name
-    );
+    console.log("Login successful:", userData.name);
   };
 
 
@@ -71,7 +68,7 @@ function App() {
 
       <Routes>
 
-        {/* Core Routes */}
+        {/* Home/Auth */}
         <Route 
           path="/" 
           element={<HomePage isLoggedIn={isLoggedIn} />} 
@@ -88,21 +85,19 @@ function App() {
         />
 
 
+        {/* Dashboard */}
         <Route
           path="/dashboard"
           element={
             isLoggedIn 
-            ? <Dashboard user={currentUser} /> 
+            ? <Dashboard user={currentUser} />
             : <Navigate to="/login" />
           }
         />
 
 
         {/* Profile & Skills */}
-        <Route 
-          path="/profile" 
-          element={<Profile user={currentUser} />} 
-        />
+        <Route path="/profile" element={<Profile user={currentUser} />} />
 
         <Route path="/browse" element={<Browse />} />
 
@@ -117,7 +112,7 @@ function App() {
         />
 
 
-        {/* Exchange & Requests */}
+        {/* Exchange */}
         <Route 
           path="/exchange-form" 
           element={<ExchangeForm user={currentUser} />} 
@@ -128,17 +123,16 @@ function App() {
         <Route path="/my-requests" element={<MyRequests />} />
 
 
+        {/* Other */}
         <Route 
           path="/suggestions" 
           element={<Suggestions user={currentUser} />} 
         />
 
-
         <Route 
           path="/chat/:requestId" 
           element={<ChatPage />} 
         />
-
 
         <Route 
           path="/ai-path" 
@@ -146,7 +140,7 @@ function App() {
         />
 
 
-        {/* ADMIN ROUTES */}
+        {/* ================= ADMIN ROUTES ================= */}
 
         <Route 
           path="/admin/pending-skills" 
@@ -200,31 +194,31 @@ function App() {
 
 
 
-        {/* COMMUNITY BARTER ROUTES */}
+        {/* ================= COMMUNITY BARTER ================= */}
 
-        <Route 
-          path="/community-barter" 
-          element={<CommunityBarter />} 
+        <Route
+          path="/community-barter"
+          element={<CommunityBarter />}
         />
 
 
-        <Route 
-          path="/community-room/:barterId" 
-          element={<CommunityRoom />} 
+        <Route
+          path="/community-room/:barterId"
+          element={<CommunityRoom />}
         />
 
 
 
         {/* Learning Rooms */}
 
-        <Route 
-          path="/learning-rooms" 
-          element={<LearningRooms />} 
+        <Route
+          path="/learning-rooms"
+          element={<LearningRooms />}
         />
 
 
 
-        {/* Catch All */}
+        {/* Error Route */}
 
         <Route
           path="*"
