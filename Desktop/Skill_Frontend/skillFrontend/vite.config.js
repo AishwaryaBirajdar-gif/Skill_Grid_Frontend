@@ -9,17 +9,23 @@ export default defineConfig({
     tailwindcss(),
   ],
   define: {
-    // This fixes the "Uncaught ReferenceError: global is not defined" error from SockJS
+    // ✅ Crucial for SockJS / STOMP to work in the browser
     global: 'window',
   },
   server: {
-    // This fixes the WebSocket / HMR connection errors
+    // ✅ Essential for fixing HMR and WebSocket connection errors
     hmr: {
       protocol: 'ws',
       host: 'localhost',
     },
-    // Optional: ensures the port stays consistent
     port: 5173,
     strictPort: true,
-  }
+    // Optional: Proxy setup if you want to avoid CORS issues with your Spring Boot backend
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8181',
+        changeOrigin: true,
+      },
+    },
+  },
 })

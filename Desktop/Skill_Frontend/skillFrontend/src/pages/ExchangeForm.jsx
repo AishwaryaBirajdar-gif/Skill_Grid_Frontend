@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import axiosInstance from '../api/axiosInstance';
 import { Send, Loader2, Zap, MessageSquare, Briefcase, BookOpen } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const ExchangeForm = () => {
     const location = useLocation();
     const navigate = useNavigate();
     
+    // Fallback for the skill data passed from Browse Skills
     const selectedSkill = location.state?.skill || {
         id: 'manual-id',
         name: 'General Skill',
@@ -15,8 +17,7 @@ const ExchangeForm = () => {
     };
 
     const currentUserId = localStorage.getItem('userId') || localStorage.getItem('skillgrid_userId');
-    // ✅ Grab current user's name with a fallback
-    const currentUserName = localStorage.getItem('userName') || "Me"; 
+    const currentUserName = localStorage.getItem('userName') || "Me";
 
     const [formState, setFormState] = useState({
         message: `Hello, I am interested in your ${selectedSkill.name} skill!`,
@@ -34,8 +35,14 @@ const ExchangeForm = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        
         if (!currentUserId) {
             setError("Please log in to send a request.");
+            return;
+        }
+
+        if (!formState.proposedExchangeDetails.trim()) {
+            setError("Please specify what you can teach in return.");
             return;
         }
 
@@ -43,30 +50,57 @@ const ExchangeForm = () => {
         setMessage('');
         setError(null);
 
-        // ✅ Robust Payload: Captures names from multiple possible locations 
-        // to prevent "Unknown User"
+        // ✅ Robust Receiver Detection: Matches multiple possible object structures from Browse Skills
+        const targetReceiverId = selectedSkill.userId || 
+                               selectedSkill.postedBy?.id || 
+                               selectedSkill.postedBy?._id || 
+                               selectedSkill.authorId;
+
+        const targetReceiverName = selectedSkill.userName || 
+                                 selectedSkill.postedBy?.name || 
+                                 selectedSkill.authorName || 
+                                 'Skill Member';
+
+        // ✅ FINAL UPDATED PAYLOAD: Matches SkillRequest.java requirements exactly
         const exchangePayload = {
             senderId: currentUserId,
             senderName: currentUserName,
-            receiverId: selectedSkill.userId || selectedSkill.postedBy?.id || selectedSkill.postedBy?._id,
-            receiverName: selectedSkill.userName || selectedSkill.postedBy?.name || selectedSkill.author || 'Skill Member',
+            receiverId: targetReceiverId,
+            receiverName: targetReceiverName,
             skillRequested: selectedSkill.name,
             skillOffered: formState.proposedExchangeDetails,
             message: formState.message,
-            status: 'PENDING'
+            status: 'PENDING',
+            
+            // ✅ Initialize negotiation fields to satisfy Backend validation
+            senderRequirements: [],
+            receiverRequirements: [],
+            senderProgress: 0,
+            receiverProgress: 0,
+            senderLocked: false,
+            receiverLocked: false,
+            senderRequirementsApproved: false,
+            receiverRequirementsApproved: false
         };
 
         try {
-            // ✅ This sends the request to your MongoDB via Spring Boot
-            await axiosInstance.post('/requests/send', exchangePayload);
+            // Debugging log to verify data in Console (F12)
+            console.log("Submitting Skill Exchange Request:", exchangePayload);
+
+            const response = await axiosInstance.post('/requests/send', exchangePayload);
             
-            setMessage(`Success! Your request has been sent to ${exchangePayload.receiverName}.`);
-            
-            // Redirect so the user sees the updated "Sent" list
-            setTimeout(() => navigate('/my-requests'), 2000);
+            if (response.status === 200 || response.status === 201) {
+                setMessage(`Success! Your request has been sent to ${exchangePayload.receiverName}.`);
+                toast.success("Request sent successfully!");
+                
+                // Navigate to dashboard to see the new sent request
+                setTimeout(() => navigate('/my-requests'), 2000);
+            }
         } catch (err) {
-            setError('Failed to send request. Make sure your Backend is running.');
-            console.error("Database Error:", err);
+            const errorMsg = err.response?.data?.message || 'Failed to send request. Check your backend server.';
+            setError(errorMsg);
+            console.error("Submission Error:", err.response?.data || err);
+            toast.error("Failed to initiate exchange.");
         } finally {
             setIsSubmitting(false);
         }
@@ -89,7 +123,7 @@ const ExchangeForm = () => {
 
                 {/* Status Messages */}
                 {message && (
-                    <div className="p-4 mx-6 mt-4 bg-green-100 border-l-4 border-green-500 text-green-700 rounded-lg animate-pulse">
+                    <div className="p-4 mx-6 mt-4 bg-green-100 border-l-4 border-green-500 text-green-700 rounded-lg">
                         {message}
                     </div>
                 )}
@@ -121,7 +155,7 @@ const ExchangeForm = () => {
                             value={formState.message}
                             onChange={handleChange}
                             required
-                            className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                            className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-gray-800"
                             placeholder="Introduce yourself and explain why you'd like to learn this skill..."
                         />
                     </div>
@@ -135,8 +169,8 @@ const ExchangeForm = () => {
                             value={formState.proposedExchangeDetails}
                             onChange={handleChange}
                             required
-                            className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
-                            placeholder="e.g., I am an expert in Python and can teach you data basics..."
+                            className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-gray-800"
+                            placeholder="e.g., I am an expert in Java and can teach you Spring Boot..."
                         />
                     </div>
 

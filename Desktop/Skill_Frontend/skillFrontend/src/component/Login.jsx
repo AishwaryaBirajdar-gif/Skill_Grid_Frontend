@@ -56,67 +56,54 @@ const Login = ({ onLoginSuccess }) => {
         e.preventDefault();
         
         try {
-            const response = await axios.post("/auth/login", {
+            // UPDATED: Added /api prefix to match your @RequestMapping("/api/auth")
+            const response = await axios.post("/api/auth/login", {
                 email,
                 password,
             });
 
             const data = response.data;
-            
-            // 🔍 DEBUG: This helps you see exactly what the server sent
-            console.log("--- LOGIN DEBUG START ---");
-            console.log("Payload from Server:", data);
-
-            // ✅ DEFENSIVE ID DETECTION:
-            // Since MongoDB often uses _id and Spring uses id, we check both.
-            const userId = data.id || data._id || data.userId;
+            const userId = data.userId; 
 
             if (!userId) {
-                console.error("ID Mismatch Error: Server response keys:", Object.keys(data));
-                alert("Login Error: User ID not found in server response. Check Console.");
+                alert("Login Error: User ID not found in server response.");
                 return;
             }
 
-            // ✅ SESSION CLEANUP: 
-            // Wipe everything to prevent "undefined" or "null" strings from previous attempts
             localStorage.clear();
-
-            // ✅ STORAGE: 
-            // We set 'userId' (lowercase 'i') because your Profile.jsx looks for that key.
             localStorage.setItem("token", data.token); 
             localStorage.setItem("userId", userId); 
-            localStorage.setItem("skillgrid_userId", userId); 
-            localStorage.setItem("userName", data.name || "User");
+            localStorage.setItem("userName", data.fullname); 
             localStorage.setItem("userRole", data.role);
+            
+            localStorage.setItem("skillgrid_userId", userId);
             localStorage.setItem("skillgrid_token", data.token);
-            localStorage.setItem("skillgrid_email", data.email || email);
-
-            console.log("Success! Saved ID to storage:", userId);
-            console.log("--- LOGIN DEBUG END ---");
+            localStorage.setItem("skillgrid_email", data.email);
 
             if (onLoginSuccess) {
                 onLoginSuccess(data);
             }
 
-            navigate("/dashboard");
+            if (data.role === "ADMIN") {
+                navigate("/admin");
+            } else {
+                navigate("/dashboard");
+            }
 
         } catch (error) {
-            console.error("Login Error Details:", error);
-            const errorMsg = error.response?.data?.message || error.response?.data || "Login failed: Invalid credentials";
+            console.error("Login Error:", error);
+            const errorMsg = error.response?.data?.message || "Login failed. Please check your credentials.";
             alert(errorMsg);
         }
     };
     
-    const handleBackClick = () => navigate('/');
-    const handleSignupClick = () => navigate('/signup');
-
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-900 overflow-hidden relative">
             <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/black-linen.png')] z-0"></div>
             <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/40 to-black/40 z-0"></div>
 
             <button 
-                onClick={handleBackClick} 
+                onClick={() => navigate('/')} 
                 className="absolute top-8 left-8 text-gray-300 hover:text-teal-400 transition duration-300 flex items-center space-x-2 font-medium z-10"
             >
                 <ArrowLeft className="w-5 h-5" />
@@ -151,18 +138,6 @@ const Login = ({ onLoginSuccess }) => {
                         onChange={(e) => setPassword(e.target.value)}
                     />
 
-                    <div className="flex justify-between items-center mb-6">
-                        <div className="flex items-center">
-                            <input 
-                                id="remember-me" 
-                                type="checkbox" 
-                                className="h-4 w-4 text-teal-500 border-gray-600 rounded focus:ring-teal-500 bg-gray-700"
-                            />
-                            <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-400">Remember me</label>
-                        </div>
-                        <a href="#" className="text-sm font-medium text-indigo-400 hover:text-teal-400 transition">Forgot Password?</a>
-                    </div>
-
                     <Button 
                         type="submit" 
                         variant="primary" 
@@ -174,7 +149,7 @@ const Login = ({ onLoginSuccess }) => {
 
                 <p className="mt-8 text-center text-gray-400">
                     Don't have an account yet?{' '}
-                    <button onClick={handleSignupClick} className="font-semibold text-teal-400 hover:text-indigo-400 transition duration-150">
+                    <button onClick={() => navigate('/signup')} className="font-semibold text-teal-400 hover:text-indigo-400 transition duration-150">
                         Join SkillGrid
                     </button>
                 </p>

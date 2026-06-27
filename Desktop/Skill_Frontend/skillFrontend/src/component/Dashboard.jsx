@@ -4,79 +4,86 @@ import { motion } from "framer-motion";
 import axiosInstance from "../api/axiosInstance"; 
 import { 
   Gift, BookOpen, Clock, Users, Zap, Layers, 
-  Home, Search, MessageSquare, LayoutDashboard, Send, Award, TrendingUp, Sparkles, Bell, ArrowRightLeft
+  MessageSquare, TrendingUp, Sparkles, Bell, ArrowRightLeft, Coins
 } from "lucide-react";
 
 function Dashboard() {
   const navigate = useNavigate();
-
   const userId = localStorage.getItem('userId') || localStorage.getItem('skillgrid_userId'); 
   const [userName, setUserName] = useState(localStorage.getItem('userName') || "User");
+  const [userKarma, setUserKarma] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
-  const [stats, setStats] = useState({
-    offered: 0,
-    wanted: 0
-  });
-
+  const [stats, setStats] = useState({ offered: 0, wanted: 0 });
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0); 
   const [incomingPendingCount, setIncomingPendingCount] = useState(0); 
-  const [sentRequests, setSentRequests] = useState([]); 
   const [activeConnections, setActiveConnections] = useState(0);
   const [matchesCount, setMatchesCount] = useState(0); 
 
   useEffect(() => {
     const fetchDashboardData = async () => {
-      if (!userId || userId === "undefined") {
+      if (!userId || userId === "undefined" || userId === "null") {
         setIsLoading(false);
         return;
       }
 
       setIsLoading(true);
       try {
-        const userRes = await axiosInstance.get(`/user/${userId}`);
-        const user = userRes.data;
+        // 1. Fetch User Profile (Karma & Name)
+        try {
+          const userRes = await axiosInstance.get(`/user/${userId}`);
+          setUserKarma(userRes.data.karmaPoints || 0);
+          setUserName(userRes.data.name || "User");
+        } catch (e) { console.error("User Profile Load Error:", e); }
 
-        const incomingRes = await axiosInstance.get(`/requests/my-requests/${userId}`);
-        const incoming = incomingRes.data;
-        
-        const sentRes = await axiosInstance.get(`/requests/sent/${userId}`);
-        const sent = sentRes.data;
+        // 2. Fetch Actual Skills (Case-Insensitive Sync)
+        try {
+          const skillsRes = await axiosInstance.get(`/skills/user/${userId}`);
+          const allUserSkills = Array.isArray(skillsRes.data) ? skillsRes.data : [];
+          
+          setStats({
+            offered: allUserSkills.filter(s => s.type?.trim().toUpperCase() === "OFFERED").length,
+            wanted: allUserSkills.filter(s => s.type?.trim().toUpperCase() === "WANTED").length
+          });
 
-        const pendingIncoming = incoming.filter(req => req.status === "PENDING");
-        const pendingSent = sent.filter(req => req.status === "PENDING");
-        const totalPending = pendingIncoming.length + pendingSent.length;
+          // 3. Smart Match Logic (Only if skills loaded)
+          const allUsersRes = await axiosInstance.get('/user/browse?skill='); 
+          const myWantsNames = allUserSkills.filter(s => s.type?.toUpperCase() === "WANTED").map(s => s.skillName);
+          const myOffersNames = allUserSkills.filter(s => s.type?.toUpperCase() === "OFFERED").map(s => s.skillName);
+          
+          const potentialMatches = (Array.isArray(allUsersRes.data) ? allUsersRes.data : []).filter(u => {
+              if (u.id === userId) return false;
+              const theyHaveWhatIWant = u.skillsOffered?.some(s => myWantsNames.includes(s));
+              const theyWantWhatIHave = u.skillsWanted?.some(s => myOffersNames.includes(s));
+              return theyHaveWhatIWant && theyWantWhatIHave;
+          });
+          setMatchesCount(potentialMatches.length);
+        } catch (e) { console.error("Skills Load Error:", e); }
 
-        const connectionsCount = [
-          ...incoming.filter(req => req.status === "ACCEPTED"),
-          ...sent.filter(req => req.status === "ACCEPTED")
-        ].length;
+        // 4. Fetch Requests (Isolated from Skill/Karma logic to prevent 404 crashes)
+        try {
+          const [incomingRes, sentRes] = await Promise.all([
+            axiosInstance.get(`/requests/my-requests/${userId}`),
+            axiosInstance.get(`/requests/sent/${userId}`)
+          ]);
+          
+          const incoming = Array.isArray(incomingRes.data) ? incomingRes.data : [];
+          const sent = Array.isArray(sentRes.data) ? sentRes.data : [];
 
-        const allUsersRes = await axiosInstance.get('/user/browse?skill='); 
-        const myWants = user.skillsWanted || [];
-        const myOffers = user.skillsOffered || [];
-        
-        const potentialMatches = allUsersRes.data.filter(u => {
-            if (u.id === userId) return false;
-            const theyHaveWhatIWant = u.skillsOffered?.some(s => myWants.includes(s));
-            const theyWantWhatIHave = u.skillsWanted?.some(s => myOffers.includes(s));
-            return theyHaveWhatIWant && theyWantWhatIHave;
-        });
-
-        setStats({
-          offered: user.skillsOffered?.length || 0,
-          wanted: user.skillsWanted?.length || 0
-        });
-        
-        setPendingRequestsCount(totalPending);
-        setIncomingPendingCount(pendingIncoming.length);
-        setSentRequests(sent); 
-        setActiveConnections(connectionsCount);
-        setMatchesCount(potentialMatches.length);
-        setUserName(user.name || "User");
+          const pendingIncoming = incoming.filter(req => req.status === "PENDING");
+          const pendingSent = sent.filter(req => req.status === "PENDING");
+          
+          setPendingRequestsCount(pendingIncoming.length + pendingSent.length);
+          setIncomingPendingCount(pendingIncoming.length);
+          setActiveConnections(
+            incoming.concat(sent).filter(req => req.status === "ACCEPTED" || req.status === "ACTIVE").length
+          );
+        } catch (e) {
+          console.warn("Requests API (404 or Error) - This did not stop Karma/Skills from loading.");
+        }
         
       } catch (error) {
-        console.error("Error fetching dashboard data:", error);
+        console.error("Critical Dashboard Sync Error:", error);
       } finally {
         setIsLoading(false);
       }
@@ -87,11 +94,8 @@ function Dashboard() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-indigo-500 mx-auto mb-4"></div>
-          <p className="text-xl font-bold text-indigo-700 uppercase tracking-widest">Loading Dashboard...</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 font-sans">
+        <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-indigo-500"></div>
       </div>
     );
   }
@@ -104,13 +108,17 @@ function Dashboard() {
             <Layers size={28} /> SkillGrid
           </div>
           <div className="hidden md:flex items-center justify-center gap-8 text-sm font-bold text-slate-500 flex-1">
-            <button onClick={() => navigate("/")} className="flex items-center gap-2 hover:text-indigo-600 transition-colors"><Home size={18}/> Home</button>
-            <button onClick={() => navigate("/browse-skill")} className="flex items-center gap-2 hover:text-indigo-600 transition-colors"><Search size={18}/> Browse Skills</button>
-            <button onClick={() => navigate("/my-requests")} className="flex items-center gap-2 hover:text-indigo-600 transition-colors"><MessageSquare size={18}/> My Requests</button>
-            <button className="flex items-center gap-2 text-indigo-600 bg-indigo-50 px-5 py-2.5 rounded-2xl"><LayoutDashboard size={18}/> Dashboard</button>
+            <button onClick={() => navigate("/")} className="hover:text-indigo-600 transition-colors">Home</button>
+            <button onClick={() => navigate("/browse-skill")} className="hover:text-indigo-600 transition-colors">Browse Skills</button>
+            <button onClick={() => navigate("/my-requests")} className="hover:text-indigo-600 transition-colors">My Requests</button>
+            <button className="text-indigo-600 bg-indigo-50 px-5 py-2.5 rounded-2xl font-black">Dashboard</button>
           </div>
-          <div className="flex justify-end w-1/4">
-            <div className="flex items-center gap-3 bg-slate-100 px-5 py-2.5 rounded-full cursor-pointer hover:bg-indigo-100 transition-all border border-transparent" onClick={() => navigate("/profile")}>
+          <div className="flex justify-end items-center gap-4 w-1/4">
+            <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 px-4 py-2 rounded-2xl">
+              <Coins size={18} className="text-amber-500" />
+              <span className="text-sm font-black text-amber-700 uppercase">{userKarma} KP</span>
+            </div>
+            <div className="flex items-center gap-3 bg-slate-100 px-5 py-2.5 rounded-full cursor-pointer hover:bg-indigo-50 transition-all" onClick={() => navigate("/profile")}>
               <Zap size={16} className="text-indigo-600" />
               <span className="text-sm font-black text-slate-700 uppercase tracking-tight">{userName}</span>
             </div>
@@ -123,7 +131,7 @@ function Dashboard() {
           <div className="relative z-10">
             <h1 className="text-5xl font-black mb-4 tracking-tight">Hello, {userName}! 👋</h1>
             <p className="text-indigo-100 text-lg font-medium opacity-90 max-w-2xl leading-relaxed">
-              Your community is active! You are currently offering <strong>{stats.offered}</strong> skills.
+              You are currently offering <strong>{stats.offered}</strong> skills. Keep growing your community!
             </p>
           </div>
           <Sparkles className="absolute right-10 top-10 text-white opacity-10 w-48 h-48" />
@@ -131,58 +139,20 @@ function Dashboard() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
           <StatCard icon={<Gift />} label="Skills Offered" value={stats.offered} color="text-indigo-600" bg="bg-indigo-50" />
-          <StatCard icon={<BookOpen />} label="Wanted Found" value={stats.wanted} color="text-emerald-600" bg="bg-emerald-50" />
+          <StatCard icon={<BookOpen />} label="Wanted Skills" value={stats.wanted} color="text-emerald-600" bg="bg-emerald-50" />
           <StatCard icon={<Clock />} label="Pending Requests" value={pendingRequestsCount} color="text-rose-600" bg="bg-rose-50" />
           <StatCard icon={<Users />} label="Connections" value={activeConnections} color="text-blue-600" bg="bg-blue-50" />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-          <BigBox 
-            title="Smart Matches" 
-            desc="Find partners who want what you teach and offer what you need." 
-            icon={<ArrowRightLeft size={40} className="text-amber-500" />} 
-            badge={matchesCount > 0 ? `${matchesCount} Matches` : null} 
-            onClick={() => navigate("/suggestions")} 
-          />
-          <BigBox 
-            title="Incoming Requests" 
-            desc={`You have ${incomingPendingCount} requests waiting for approval.`} 
-            icon={<Bell size={40} className="text-rose-500" />} 
-            badge={incomingPendingCount > 0 ? `${incomingPendingCount} New` : null} 
-            onClick={() => navigate("/my-requests")} 
-          />
-          <BigBox 
-            title="Active Rooms" 
-            desc="Ongoing exchanges. Jump back into your chats." 
-            icon={<MessageSquare size={40} className="text-emerald-500" />} 
-            onClick={() => navigate("/my-requests")} 
-          />
-          <BigBox 
-            title="Trending Skills" 
-            desc="Explore popular skills on SkillGrid." 
-            icon={<TrendingUp size={40} className="text-violet-500" />} 
-            onClick={() => navigate("/browse-skill")} 
-          />
-          
-          {/* New AI Path Suggestion Box */}
-          <BigBox 
-            title="AI Path Suggestion" 
-            desc="Get a personalized learning roadmap based on your current skills." 
-            icon={<Sparkles size={40} className="text-indigo-500" />} 
-            onClick={() => {
-    // Save the FULL list of offered skills
-    localStorage.setItem('userSkills', stats.offeredSkills || ""); 
-    navigate("/ai-path");
-  }} 
-          />
-
-          {/* New Skill Demand Forecasting Box */}
-          <BigBox 
-            title="Skill Demand Forecasting" 
-            desc="See which skills will be most valuable in the coming months." 
-            icon={<Zap size={40} className="text-blue-500" />} 
-            onClick={() => navigate("/skill-demand")} 
-          />
+          <BigBox title="Smart Matches" desc="Find partners who want what you teach." icon={<ArrowRightLeft size={40} className="text-amber-500" />} badge={matchesCount > 0 ? `${matchesCount} Matches` : null} onClick={() => navigate("/suggestions")} />
+          <BigBox title="Incoming Requests" desc={`You have ${incomingPendingCount} requests waiting.`} icon={<Bell size={40} className="text-rose-500" />} badge={incomingPendingCount > 0 ? `${incomingPendingCount} New` : null} onClick={() => navigate("/my-requests")} />
+<BigBox 
+  title="Active Rooms" 
+  desc="Ongoing exchanges. Jump back into your chats." 
+  icon={<MessageSquare size={40} className="text-emerald-500" />} 
+  onClick={() => navigate("/learning-rooms")} 
+/>          <BigBox title="Trending Skills" desc="Explore popular skills on SkillGrid." icon={<TrendingUp size={40} className="text-violet-500" />} onClick={() => navigate("/browse-skill")} />
         </div>
       </div>
     </div>
@@ -213,4 +183,4 @@ const BigBox = ({ title, desc, icon, badge, onClick }) => (
   </div>
 );
 
-export default Dashboard
+export default Dashboard;

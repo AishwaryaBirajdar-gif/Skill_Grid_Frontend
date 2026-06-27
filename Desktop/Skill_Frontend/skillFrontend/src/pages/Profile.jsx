@@ -53,7 +53,7 @@ const Profile = () => {
         skillName: '',
         category: 'Technology',
         description: '',
-        trending: false,
+        isTrending: false,
         karmaPoints: ''
     });
 
@@ -126,100 +126,94 @@ const Profile = () => {
         }));
     };
 
-    // ADD SKILL
-    const addSkill = async (type) => {
+    // 
+    // ADD SKILL (FIXED - SINGLE CLEAN VERSION)
+const addSkill = async (type) => {
 
-        try {
+    try {
 
-            if (type === 'OFFERED') {
+        if (type === 'OFFERED') {
 
-                if (
-                    !offeredInput.skillName.trim() ||
-                    formData.skillsOffered.some(
-                        s => s.skillName === offeredInput.skillName
-                    )
-                ) {
-                    return;
-                }
+            if (
+                !offeredInput.skillName.trim() ||
+                !offeredInput.description.trim() ||
+                formData.skillsOffered.some(
+                    s => s.skillName === offeredInput.skillName
+                )
+            ) return;
 
-                // CREATE SKILL IN DATABASE
-                const response = await axiosInstance.post('/skills', {
-                    skillName: offeredInput.skillName,
-                    category: offeredInput.category,
-                    description: offeredInput.description,
-                    karmaPoints: offeredInput.karmaPoints,
-                    type: "OFFERED",
-                    userId: userId,
-                    trending: false
-                });
+            const response = await axiosInstance.post('/skills', {
+                skillName: offeredInput.skillName,
+                category: offeredInput.category,
+                description: offeredInput.description,
+                karmaPoints: String(offeredInput.karmaPoints || "0"),
+                type: "OFFERED",
+                userId: userId,
+                trending: false
+            });
 
-                const savedSkill = response.data;
+            const savedSkill = response.data;
 
-                // ADD TO USER STATE
-                setFormData(prev => ({
-                    ...prev,
-                    skillsOffered: [
-                        ...prev.skillsOffered,
-                        savedSkill
-                    ]
-                }));
+            setFormData(prev => ({
+                ...prev,
+                skillsOffered: [
+                    ...prev.skillsOffered,
+                    savedSkill
+                ]
+            }));
 
-                // RESET
-                setOfferedInput({
-                    skillName: '',
-                    category: 'Technology',
-                    description: '',
-                    trending: false,
-                    karmaPoints: ''
-                });
+            setOfferedInput({
+                skillName: '',
+                category: 'Technology',
+                description: '',
+                isTrending: false,
+                karmaPoints: ''
+            });
 
-            } else {
+        } else {
 
-                if (
-                    !wantedInput.skillName.trim() ||
-                    formData.skillsWanted.some(
-                        s => s.skillName === wantedInput.skillName
-                    )
-                ) {
-                    return;
-                }
+            if (
+                !wantedInput.skillName.trim() ||
+                !wantedInput.description.trim() ||
+                formData.skillsWanted.some(
+                    s => s.skillName === wantedInput.skillName
+                )
+            ) return;
 
-                                // CREATE WANTED SKILL OBJECT
-                const response = await axiosInstance.post('/skills', {
-                    skillName: wantedInput.skillName,
-                    category: wantedInput.category,
-                    description: wantedInput.description,
-                    type: "WANTED",
-                    userId: userId,
-                    karmaPoints: "0",
-                    trending: false
-                });
+            const response = await axiosInstance.post('/skills', {
+                skillName: wantedInput.skillName,
+                category: wantedInput.category,
+                description: wantedInput.description,
+                type: "WANTED",
+                userId: userId,
+                karmaPoints: "0",
+                trending: false
+            });
 
-                const wantedSkill = response.data;
-                setFormData(prev => ({
-                    ...prev,
-                    skillsWanted: [
-                        ...prev.skillsWanted,
-                        wantedSkill
-                    ]
-                }));
+            const savedSkill = response.data;
 
-                // RESET
-                setWantedInput({
-                    skillName: '',
-                    category: 'Technology',
-                    description: '',
-                    wantedType: 'LEARNING'
-                });
-            }
+            setFormData(prev => ({
+                ...prev,
+                skillsWanted: [
+                    ...prev.skillsWanted,
+                    savedSkill
+                ]
+            }));
 
-        } catch (error) {
-
-            console.error("Error adding skill:", error);
-
-            alert("Failed to add skill.");
+            setWantedInput({
+                skillName: '',
+                category: 'Technology',
+                description: '',
+                wantedType: 'LEARNING'
+            });
         }
-    };
+
+    } catch (error) {
+
+        console.error("Error adding skill:", error);
+        alert("Failed to add skill.");
+    }
+};
 
     // REMOVE SKILL
     const removeSkill = (type, skillName) => {
@@ -398,7 +392,7 @@ const Profile = () => {
 
                     {/* OFFERED */}
                     <SkillSection
-                        title="Skills I Can Teach"
+                        title="Skills I Can Offer"
                         skills={formData.skillsOffered}
                         inputValue={offeredInput}
                         setInputValue={setOfferedInput}
@@ -412,7 +406,7 @@ const Profile = () => {
 
                     {/* WANTED */}
                     <SkillSection
-                        title="Skills I Want to Learn"
+                        title="Skills I Want"
                         skills={formData.skillsWanted}
                         inputValue={wantedInput}
                         setInputValue={setWantedInput}
@@ -567,7 +561,7 @@ const SkillSection = ({
                         />
 
                         {/* KARMA POINTS ONLY FOR OFFERED SKILLS */}
-                        {title === "Skills I Can Teach" && (
+                        {title === "Skills I Can Offer" && (
                             <input
                                 type="number"
                                 min="0"
@@ -605,12 +599,37 @@ const SkillSection = ({
 
                     <div
                         key={index}
-                        className="flex items-center gap-2 bg-white border-2 border-slate-100 px-4 py-1.5 rounded-xl shadow-sm hover:border-indigo-200 transition-colors"
+                        className="relative flex items-center gap-2 bg-white border-2 border-slate-100 px-4 py-3 rounded-xl shadow-sm hover:border-indigo-200 transition-all"
                     >
 
-                        <span className="text-sm font-semibold text-slate-700">
-                            {skill.skillName}
-                        </span>
+                        <div className="flex flex-col">
+
+                            <span className="text-sm font-semibold text-slate-700">
+                                {skill.skillName}
+                            </span>
+                            
+
+                            {title === "Skills I Can Offer" && skill.depthLevel && (
+                                <span
+                                    className={`text-xs font-bold px-2 py-1 rounded-full mt-1 w-fit
+                                    ${skill.depthLevel === 'Beginner'
+                                        ? 'bg-red-100 text-red-600'
+                                        : skill.depthLevel === 'Intermediate'
+                                        ? 'bg-yellow-100 text-yellow-700'
+                                        : skill.depthLevel === 'Advanced'
+                                        ? 'bg-blue-100 text-blue-700'
+                                        : 'bg-green-100 text-green-700'
+                                    }`}
+                                >
+                                    {skill.depthLevel}
+                                </span>
+                            )}
+                           {title === "Skills I Can Offer" && skill.karmaPoints && (
+                                <div className="absolute top-2 right-2 bg-gradient-to-br from-yellow-300 to-yellow-500 text-white text-xs font-bold w-7 h-7 flex items-center justify-center rounded-full shadow-md border border-yellow-600">
+                                    {skill.karmaPoints}
+                                </div>
+                            )}
+                        </div>
 
                         {isEditing && (
                             <button

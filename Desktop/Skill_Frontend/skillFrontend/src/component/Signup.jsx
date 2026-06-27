@@ -73,7 +73,6 @@ const Signup = ({ onSignupSuccess }) => {
 
         const { name, email, password, confirmPassword, role } = formData;
 
-        // Validations
         if (!name || !email || !password || !confirmPassword) {
             setError("All fields are required!");
             setIsSubmitting(false);
@@ -93,7 +92,6 @@ const Signup = ({ onSignupSuccess }) => {
         }
 
         try {
-            // ✅ API call uses axiosInstance (which already contains the /api base)
             const response = await axiosInstance.post("/auth/signup", {
                 name,
                 email,
@@ -102,30 +100,26 @@ const Signup = ({ onSignupSuccess }) => {
             });
 
             const data = response.data;
-            console.log("Signup Success Data:", data);
-
-            // ✅ CRITICAL: Map 'id' (backend) to 'userId' (Profile page key)
-            // This prevents the "ID: Missing" error on the Profile page.
+            
+            // Set storage using the exact keys returned by your backend
             localStorage.setItem("token", data.token);
-            localStorage.setItem("userId", data.id); 
-            localStorage.setItem("userName", data.name);
+            localStorage.setItem("userId", data.userId); 
+            localStorage.setItem("userName", data.fullname);
             localStorage.setItem("userRole", data.role);
-
-            // Redundant backup keys for SkillGrid specific components
-            localStorage.setItem("skillgrid_token", data.token);
-            localStorage.setItem("skillgrid_userId", data.id);
-            localStorage.setItem("skillgrid_name", data.name);
-            localStorage.setItem("skillgrid_role", data.role);
 
             if (onSignupSuccess) onSignupSuccess(data);
 
-            // Direct navigation to dashboard after successful signup
-            navigate("/dashboard");
+            // ✅ REDIRECTION LOGIC
+            if (data.role === "ADMIN") {
+                navigate("/admin");
+            } else {
+                navigate("/dashboard");
+            }
 
         } catch (err) {
             console.error("Signup Error:", err);
-            const serverMessage = err.response?.data?.message || err.response?.data;
-            setError(serverMessage || "Signup failed! Email might already be in use.");
+            const serverMessage = err.response?.data?.message || err.response?.data || "Signup failed!";
+            setError(serverMessage);
         } finally {
             setIsSubmitting(false);
         }
@@ -158,84 +152,27 @@ const Signup = ({ onSignupSuccess }) => {
                 )}
 
                 <form onSubmit={handleSubmit}>
-                    <InputField
-                        id="name"
-                        label="Full Name"
-                        type="text"
-                        icon={User}
-                        placeholder="e.g. Alex Johnson"
-                        value={formData.name}
-                        onChange={handleChange}
-                    />
-
-                    <InputField
-                        id="email"
-                        label="Email Address"
-                        type="email"
-                        icon={Mail}
-                        placeholder="e.g. alex@skillgrid.com"
-                        value={formData.email}
-                        onChange={handleChange}
-                    />
-                    
-                    <InputField
-                        id="password"
-                        label="Password"
-                        type="password"
-                        icon={Lock}
-                        placeholder="Min 6 characters"
-                        value={formData.password}
-                        onChange={handleChange}
-                    />
-
-                    <InputField
-                        id="confirmPassword"
-                        label="Confirm Password"
-                        type="password"
-                        icon={Lock}
-                        placeholder="Re-enter password"
-                        value={formData.confirmPassword}
-                        onChange={handleChange}
-                    />
+                    <InputField id="name" label="Full Name" type="text" icon={User} placeholder="e.g. Alex Johnson" value={formData.name} onChange={handleChange} />
+                    <InputField id="email" label="Email Address" type="email" icon={Mail} placeholder="e.g. alex@skillgrid.com" value={formData.email} onChange={handleChange} />
+                    <InputField id="password" label="Password" type="password" icon={Lock} placeholder="Min 6 characters" value={formData.password} onChange={handleChange} />
+                    <InputField id="confirmPassword" label="Confirm Password" type="password" icon={Lock} placeholder="Re-enter password" value={formData.confirmPassword} onChange={handleChange} />
                     
                     <div className="mb-6">
                         <label htmlFor="role" className="block text-sm font-medium text-gray-300 mb-2 text-left">Select Role</label>
-                        <div className="relative">
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <Shield className="h-5 w-5 text-indigo-400" aria-hidden="true" />
-                            </div>
-                            <select
-                                id="role"
-                                name="role"
-                                value={formData.role}
-                                onChange={handleChange}
-                                className="block w-full pl-10 pr-4 py-3 border border-gray-700 rounded-lg text-white bg-gray-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition duration-150 appearance-none"
-                            >
-                                <option value="USER">👤 User (Standard Member)</option>
-                                <option value="ADMIN">🛠 Admin (Platform Moderator)</option>
-                            </select>
-                            <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
-                                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-                            </div>
-                        </div>
+                        <select id="role" name="role" value={formData.role} onChange={handleChange} className="block w-full pl-10 pr-4 py-3 border border-gray-700 rounded-lg text-white bg-gray-800 focus:outline-none focus:ring-2 focus:ring-teal-500 appearance-none">
+                            <option value="USER">👤 User (Standard Member)</option>
+                            <option value="ADMIN">🛠 Admin (Platform Moderator)</option>
+                        </select>
                     </div>
 
-                    <Button 
-                        type="submit" 
-                        isLoading={isSubmitting}
-                        disabled={isSubmitting}
-                        className="w-full mt-6 py-3.5 text-xl shadow-teal-500/40"
-                    >
+                    <Button type="submit" isLoading={isSubmitting} disabled={isSubmitting} className="w-full mt-6 py-3.5 text-xl">
                         {isSubmitting ? 'Creating Account...' : 'Sign Up'}
                     </Button>
                 </form>
 
                 <p className="mt-8 text-center text-gray-400">
                     Already have an account?{' '}
-                    <button 
-                        onClick={() => navigate('/login')}
-                        className="font-semibold text-teal-400 hover:text-indigo-400 transition duration-150 focus:outline-none"
-                    >
+                    <button onClick={() => navigate('/login')} className="font-semibold text-teal-400 hover:text-indigo-400 transition duration-150">
                         Login
                     </button>
                 </p>
